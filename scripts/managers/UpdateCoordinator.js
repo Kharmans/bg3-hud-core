@@ -255,6 +255,14 @@ export class UpdateCoordinator {
             }
         }
 
+        // Check for skill proficiency/value changes (affects info container)
+        const skillsChanged = changes?.system?.skills;
+        if (skillsChanged) {
+            if (await this._handleAbilityChange()) {
+                return;
+            }
+        }
+
         // LATE: Always call depletion update at the end if no early return occurred
         this._updateDepletionStatesDeferred(actor, changes);
 
@@ -434,8 +442,8 @@ export class UpdateCoordinator {
      */
     async _handleAbilityChange() {
         const infoContainer = this.hotbarApp.components?.info;
-        if (infoContainer && typeof infoContainer.render === 'function') {
-            await infoContainer.render();
+        if (infoContainer && typeof infoContainer.update === 'function') {
+            await infoContainer.update();
             return true;
         }
         return false;
@@ -638,6 +646,8 @@ export class UpdateCoordinator {
             if (this.hotbarApp.components?.hotbar?.activeEffectsContainer) {
                 await this.hotbarApp.components.hotbar.activeEffectsContainer.render();
             }
+            // Also update info container - active effects can change ability scores, skills, etc.
+            await this._handleAbilityChange();
         }
     }
 

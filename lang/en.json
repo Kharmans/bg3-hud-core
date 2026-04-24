@@ -187,6 +187,10 @@
         "SyncedToWorld": "Portrait data synced to world - all players will now use this configuration",
         "WorldConfigActive": "Your GM has set a world config",
         "UseMyOwnConfig": "Use my own config instead"
+      },
+      "AutoPopulate": {
+        "Options": "Options",
+        "HotbarGrid": "Hotbar Grid {number}"
       }
     },
     "Controls": {
@@ -196,11 +200,52 @@
         "DeselectToken": "Deselecting Token",
         "Opacity": "Opacity",
         "DragDrop": "Drag & Drop"
+      },
+      "GMToggle": {
+        "Tooltip": "Toggle between GM Hotbar and Token Hotbar"
+      },
+      "Row": {
+        "Add": "Add Row",
+        "Remove": "Remove Row"
+      },
+      "Settings": {
+        "Tooltip": "Settings<br>(Right-click for quick actions)",
+        "ResetLayout": "Reset Layout",
+        "ClearAllItems": "Clear All Items",
+        "SaveLayout": "Save Layout as Actor Default",
+        "ExportLayout": "Export Layout",
+        "ImportLayout": "Import Layout"
       }
+    },
+    "ContextMenu": {
+      "EditItem": "Edit Item",
+      "RemoveItem": "Remove Item",
+      "SortContainer": "Sort Container",
+      "ClearContainer": "Clear Container",
+      "AutoPopulateContainer": "Auto-Populate Container",
+      "AutoPopulateHint": "Manually populate this container with items from the actor. Note: NPCs auto-populate on token creation, but player characters should use this option."
+    },
+    "Filters": {
+      "LeftClick": "Left Click: Highlight matching items",
+      "RightClick": "Right Click: Mark as used"
     },
     "Tooltips": {
       "InfoButton": "Character Info<br><small>Right-click for Initiative</small>",
       "SwitchWeaponSet": "Click: Switch to weapon set {number}"
+    },
+    "Views": {
+      "CreateTitle": "Create New View",
+      "EditTitle": "Edit View",
+      "CreateButton": "Create",
+      "SaveButton": "Save",
+      "DefaultNewName": "New View",
+      "DefaultEditName": "View",
+      "NameLabel": "View Name",
+      "NamePlaceholder": "Enter view name...",
+      "IconLabel": "Select Icon",
+      "CustomIconLabel": "Or enter custom Font Awesome class:",
+      "CustomIconPlaceholder": "e.g., fa-sparkles",
+      "ErrorEmptyName": "View name cannot be empty"
     },
     "TargetSelector": {
       "Instructions": "Select {min}-{max} targets. Press {confirm} to confirm, {cancel} to cancel.",

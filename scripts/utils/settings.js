@@ -126,7 +126,7 @@ export function registerSettings() {
             },
             {
                 legend: 'bg3-hud-core.Settings.LayoutAppearance.ScalePositionLegend',
-                keys: ['autoScale', 'uiScale', 'uiPosition', 'posPadding', 'posPaddingBottom']
+                keys: ['autoScale', 'uiScale', 'infoContainerScale', 'uiPosition', 'posPadding', 'posPaddingBottom']
             },
             {
                 legend: 'bg3-hud-core.Settings.LayoutAppearance.ContainerConfigurationLegend',
@@ -407,6 +407,26 @@ export function registerSettings() {
             if (ui.BG3HUD_APP?.element) {
                 const container = ui.BG3HUD_APP.element.querySelector('#bg3-hotbar-container');
                 if (container) container.style.setProperty('--bg3-scale-ui', updateUIScale());
+            }
+        }
+    });
+
+    game.settings.register(MODULE_ID, 'infoContainerScale', {
+        name: 'Info Container Scale (%)',
+        hint: 'Scale the font size and icons within the Character Info Container (Abilities, Skills, Saves)',
+        scope: 'client',
+        config: false,
+        type: Number,
+        range: {
+            min: 50,
+            max: 300,
+            step: 5
+        },
+        default: 120,
+        onChange: value => {
+            if (ui.BG3HUD_APP?.element) {
+                const container = ui.BG3HUD_APP.element.querySelector('#bg3-hotbar-container');
+                if (container) container.style.setProperty('--bg3-info-scale', value / 100);
             }
         }
     });
@@ -1026,6 +1046,10 @@ export function applyAppearanceSettings() {
 
     // Apply scale
     container.style.setProperty('--bg3-scale-ui', updateUIScale());
+    
+    // Apply Info Container font scale
+    const infoScale = game.settings.get(MODULE_ID, 'infoContainerScale');
+    container.style.setProperty('--bg3-info-scale', infoScale / 100);
 
     // Apply position
     const position = game.settings.get(MODULE_ID, 'uiPosition');

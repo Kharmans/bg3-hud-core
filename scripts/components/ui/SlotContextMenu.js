@@ -74,7 +74,7 @@ export class SlotContextMenu {
             // Open item sheet (if cell has uuid - works for any item type)
             if (cell.data.uuid) {
                 menuItems.push({
-                    label: 'Edit Item',
+                    label: game.i18n.localize('bg3-hud-core.ContextMenu.EditItem'),
                     icon: 'fas fa-edit',
                     onClick: async () => {
                         const item = await fromUuid(cell.data.uuid);
@@ -86,7 +86,7 @@ export class SlotContextMenu {
             }
 
             menuItems.push({
-                label: 'Remove Item',
+                label: game.i18n.localize('bg3-hud-core.ContextMenu.RemoveItem'),
                 icon: 'fas fa-trash',
                 onClick: async () => {
                     await this.interactionCoordinator.removeCell(cell);
@@ -112,7 +112,7 @@ export class SlotContextMenu {
             // Sort container (only enabled if container has items and adapter supports sorting)
             if (this.adapter && this.adapter.autoSort) {
                 menuItems.push({
-                    label: 'Sort Container',
+                    label: game.i18n.localize('bg3-hud-core.ContextMenu.SortContainer'),
                     icon: 'fas fa-sort',
                     onClick: async () => {
                         if (!hasItems) {
@@ -125,7 +125,7 @@ export class SlotContextMenu {
 
             // Clear container (always allowed; no-op if already empty)
             menuItems.push({
-                label: 'Clear Container',
+                label: game.i18n.localize('bg3-hud-core.ContextMenu.ClearContainer'),
                 icon: 'fas fa-times-circle',
                 onClick: async () => {
                     await this.interactionCoordinator.clearContainer(container);
@@ -136,9 +136,9 @@ export class SlotContextMenu {
             // Note: This is for player characters. NPCs auto-populate on token creation.
             if (this.adapter && this.adapter.autoPopulate) {
                 menuItems.push({
-                    label: 'Auto-Populate Container',
+                    label: game.i18n.localize('bg3-hud-core.ContextMenu.AutoPopulateContainer'),
                     icon: 'fas fa-magic',
-                    title: 'Manually populate this container with items from the actor. Note: NPCs auto-populate on token creation, but player characters should use this option.',
+                    title: game.i18n.localize('bg3-hud-core.ContextMenu.AutoPopulateHint'),
                     onClick: async () => {
                         await this.interactionCoordinator.autoPopulateContainer(container);
                     }

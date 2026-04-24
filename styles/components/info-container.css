@@ -1,9 +1,17 @@
 /**
  * Info Container Styles
  * Character information panel that slides up from portrait
+ *
+ * Layout:
+ *   [Ability Header Row] — 6 blocks with icon, name, score, d20 modifier
+ *   [Skills Grid]        — 3 columns of all skills
+ *   [Saves Section]      — optional, system-specific (e.g., PF2e Fort/Ref/Will)
  */
 
-/* Wrapper positions button and panel */
+/* ──────────────────────────────────────────────
+   Wrapper & Toggle Button
+   ────────────────────────────────────────────── */
+
 .bg3-info-container-wrapper {
     position: absolute;
     top: 0;
@@ -60,11 +68,13 @@
         inset 0 1px 2px rgba(255, 255, 255, 0.2);
 }
 
-/* Sliding panel - appended to document.body when open */
+/* ──────────────────────────────────────────────
+   Sliding Panel
+   ────────────────────────────────────────────── */
+
 .bg3-info-panel {
     position: fixed;
-    min-width: 400px;
-    max-width: 600px;
+    width: auto;
     background: var(--bg3-hotbar-sub-background-color);
     border: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
     border-radius: var(--bg3-border-radius);
@@ -86,224 +96,254 @@
     pointer-events: none;
 }
 
-/* Content wrapper */
+/* Content wrapper — vertical stack */
 .bg3-info-content {
     display: flex;
+    flex-direction: column;
     gap: 12px;
     color: var(--bg3-hotbar-text-color);
     font-size: 0.85em;
-    width: 100%;
 }
 
-/* Abilities column (center) */
-.bg3-info-abilities {
-    flex: 1 1 33.333%;
+/* ──────────────────────────────────────────────
+   Ability Header Row
+   ────────────────────────────────────────────── */
+
+.bg3-info-abilities-header {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding-bottom: 10px;
+}
+
+/* Individual ability block */
+.bg3-info-ability-block {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    /* Allow flexbox to shrink below content size */
+    align-items: center;
+    gap: 2px;
+    padding: 8px 12px 6px;
+    background: var(--bg3-cell-background);
+    border: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
+    border-radius: calc(var(--bg3-border-radius) / 2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-width: 72px;
+    flex: 1;
 }
 
-.bg3-info-ability {
+.bg3-info-ability-block:hover {
+    background: var(--bg3-cell-hover-background);
+    border-color: var(--bg3-hotbar-border-color-hover);
+}
+
+/* Top row: icon + short name */
+.bg3-info-ability-label {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 4px;
+    font-size: 1em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--bg3-hotbar-text-color);
+}
+
+
+
+/* Large score */
+.bg3-info-ability-score {
+    font-size: calc(1.6em * var(--bg3-info-scale, 1.2));
+    font-weight: 700;
+    color: var(--bg3-hotbar-text-color);
+    line-height: 1;
+    margin: 2px 0;
+}
+
+/* d20 modifier overlay */
+.bg3-info-d20-modifier {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(36px * var(--bg3-info-scale, 1.2));
+    height: calc(36px * var(--bg3-info-scale, 1.2));
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.bg3-info-skill .bg3-info-d20-modifier {
+    width: calc(28px * var(--bg3-info-scale, 1.2));
+    height: calc(28px * var(--bg3-info-scale, 1.2));
+    margin-top: 0;
+}
+
+.bg3-info-d20-modifier .bg3-d20-icon {
+    position: absolute;
+    font-size: calc(2.2em * var(--bg3-info-scale, 1.2));
+    color: var(--bg3-hotbar-text-color);
+    opacity: 0.25;
+}
+
+.bg3-info-skill .bg3-info-d20-modifier .bg3-d20-icon {
+    font-size: calc(1.8em * var(--bg3-info-scale, 1.2));
+}
+
+.bg3-info-d20-modifier.proficient .bg3-d20-icon {
+    color: rgba(52, 151, 217, 0.9);
+    opacity: 0.7;
+}
+
+.bg3-info-d20-modifier.expertise .bg3-d20-icon {
+    color: rgba(230, 176, 30, 0.9);
+    opacity: 0.7;
+}
+
+.bg3-info-d20-modifier.half-proficient .bg3-d20-icon {
+    color: rgba(160, 160, 160, 0.9);
+    opacity: 0.7;
+}
+
+.bg3-info-d20-modifier.master .bg3-d20-icon {
+    color: rgba(155, 89, 182, 0.9);
+    opacity: 0.7;
+}
+
+.bg3-info-d20-modifier.legendary .bg3-d20-icon {
+    color: rgba(231, 76, 60, 0.9);
+    opacity: 0.7;
+}
+
+.bg3-info-d20-modifier .bg3-d20-value {
+    position: relative;
+    font-size: calc(1em * var(--bg3-info-scale, 1.2));
+    font-weight: 700;
+    color: var(--bg3-hotbar-text-color);
+    text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 2px 2px rgba(0, 0, 0, 0.8);
+    z-index: 1;
+}
+
+.bg3-info-skill .bg3-info-d20-modifier .bg3-d20-value {
+    font-size: calc(1em * var(--bg3-info-scale, 1.2));
+}
+
+/* ──────────────────────────────────────────────
+   Skills Grid — 3 columns
+   ────────────────────────────────────────────── */
+
+.bg3-info-skills-grid {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
+}
+
+.bg3-info-skills-column {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+
+/* Individual skill row */
+.bg3-info-skill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    border-radius: calc(var(--bg3-border-radius) / 2);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: calc(0.85em * var(--bg3-info-scale, 1.2));
+}
+
+.bg3-info-skill:hover {
+    background: var(--bg3-tertiary-color-hover);
+}
+
+/* Skill name */
+.bg3-info-skill-name {
+    color: var(--bg3-hotbar-text-color);
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Ability abbreviation (right) */
+.bg3-info-skill-ability {
+    font-size: calc(0.8em * var(--bg3-info-scale, 1.2));
+    color: var(--bg3-text-secondary-color);
+    opacity: 0.6;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────────
+   Saves Section (PF2e-style: Fort/Ref/Will — 3 horizontal d20 blocks)
+   ────────────────────────────────────────────── */
+
+.bg3-info-saves {
+    padding-top: 8px;
+    border-top: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
+}
+
+/* 3 horizontal blocks side by side */
+.bg3-info-saves-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.bg3-info-save-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     padding: 6px 10px;
     background: var(--bg3-cell-background);
     border: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
     border-radius: calc(var(--bg3-border-radius) / 2);
     cursor: pointer;
     transition: all 0.15s ease;
+    flex: 1;
 }
 
-.bg3-info-ability:hover {
+.bg3-info-save-block:hover {
     background: var(--bg3-cell-hover-background);
     border-color: var(--bg3-hotbar-border-color-hover);
-    transform: translateX(2px);
 }
 
-.bg3-info-ability.selected {
-    background: var(--bg3-cell-filled-background);
-    border-color: var(--bg3-hotbar-border-color-hover);
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
-}
-
-.bg3-info-ability-name {
-    font-weight: 600;
-    color: var(--bg3-text-secondary-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-}
-
-.bg3-info-ability-modifier {
-    font-weight: bold;
+/* Label above d20 */
+.bg3-info-save-label {
+    font-size: calc(0.75em * var(--bg3-info-scale, 1.2));
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--bg3-hotbar-text-color);
-}
-
-.bg3-info-ability-modifier.positive::before {
-    content: '+';
-}
-
-/* Skills column (left) */
-.bg3-info-skills {
-    flex: 1 1 33.333%;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border-right: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
-    padding-right: 12px;
-    min-width: 0;
-    /* Allow flexbox to shrink below content size */
-    transition: transform 0.3s ease, opacity 0.3s ease, width 0.3s ease, margin 0.3s ease;
-    transform: translateX(0);
-    opacity: 1;
-}
-
-.bg3-info-skills.hidden {
-    transform: translateX(-100%);
-    opacity: 0;
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    margin: 0;
-    border: none;
-    overflow: hidden;
-}
-
-.bg3-info-skill {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    background: var(--bg3-cell-background);
-    border-radius: calc(var(--bg3-border-radius) / 2);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-size: 0.85em;
-}
-
-.bg3-info-skill:hover {
-    background: var(--bg3-cell-hover-background);
-    transform: translateX(2px);
-}
-
-.bg3-info-skill-name {
-    color: var(--bg3-text-secondary-color);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
 }
 
-.bg3-info-skill-modifier {
-    font-weight: bold;
-    color: var(--bg3-hotbar-text-color);
+/* Save d20 — same size as skill d20s */
+.bg3-info-save-d20 {
+    width: calc(32px * var(--bg3-info-scale, 1.2));
+    height: calc(32px * var(--bg3-info-scale, 1.2));
+    margin-top: 2px;
 }
 
-.bg3-info-skill-modifier.positive::before {
-    content: '+';
+.bg3-info-save-d20 .bg3-d20-icon {
+    font-size: calc(2em * var(--bg3-info-scale, 1.2));
 }
 
-/* Saves/checks column (right) */
-.bg3-info-saves {
-    flex: 1 1 33.333%;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border-left: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
-    padding-left: 12px;
-    min-width: 0;
-    /* Allow flexbox to shrink below content size */
-    transition: transform 0.3s ease, opacity 0.3s ease, width 0.3s ease, margin 0.3s ease;
-    transform: translateX(0);
-    opacity: 1;
+.bg3-info-save-d20 .bg3-d20-value {
+    font-size: calc(0.9em * var(--bg3-info-scale, 1.2));
 }
 
-.bg3-info-saves.hidden {
-    transform: translateX(100%);
-    opacity: 0;
-    width: 0;
-    min-width: 0;
-    padding: 0;
-    margin: 0;
-    border: none;
-    overflow: hidden;
-}
-
-/* Ability check (in right column) */
-.bg3-info-check {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    background: var(--bg3-cell-background);
-    border-radius: calc(var(--bg3-border-radius) / 2);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-size: 0.85em;
-}
-
-.bg3-info-check:hover {
-    background: var(--bg3-cell-hover-background);
-    transform: translateX(-2px);
-}
-
-.bg3-info-check-name {
-    color: var(--bg3-text-secondary-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-}
-
-.bg3-info-check-modifier {
-    font-weight: bold;
-    color: var(--bg3-hotbar-text-color);
-}
-
-.bg3-info-check-modifier.positive::before {
-    content: '+';
-}
-
-/* Saving throw (in right column) */
-.bg3-info-save {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 4px 8px;
-    background: var(--bg3-cell-background);
-    border-radius: calc(var(--bg3-border-radius) / 2);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    font-size: 0.85em;
-}
-
-.bg3-info-save:hover {
-    background: var(--bg3-cell-hover-background);
-    transform: translateX(-2px);
-}
-
-.bg3-info-save-name {
-    color: var(--bg3-text-secondary-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-}
-
-.bg3-info-save-modifier {
-    font-weight: bold;
-    color: var(--bg3-hotbar-text-color);
-}
-
-.bg3-info-save-modifier.positive::before {
-    content: '+';
-}
-
-/* Section headers */
+/* Section headers (kept for other potential uses) */
 .bg3-info-section-header {
     font-size: 0.75em;
     font-weight: bold;
@@ -313,43 +353,4 @@
     padding-bottom: 2px;
     border-bottom: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
     letter-spacing: 0.5px;
-}
-
-/* New elements for scores and proficiency */
-.bg3-info-ability-score {
-    font-size: 0.9em;
-    color: var(--bg3-text-secondary-color);
-    margin: 0 8px;
-    opacity: 0.7;
-}
-
-/* Proficiency border colors */
-.bg3-info-skill.proficient,
-.bg3-info-save.proficient {
-    border-color: rgba(52, 151, 217, 0.8);
-    box-shadow: inset 2px 0 0 rgba(52, 151, 217, 0.5);
-}
-
-.bg3-info-skill.expertise,
-.bg3-info-save.expertise {
-    border-color: rgba(230, 176, 30, 0.8);
-    box-shadow: inset 2px 0 0 rgba(230, 176, 30, 0.5);
-}
-
-.bg3-info-skill.half-proficient,
-.bg3-info-save.half-proficient {
-    border-color: rgba(160, 160, 160, 0.6);
-    box-shadow: inset 2px 0 0 rgba(160, 160, 160, 0.3);
-}
-
-.bg3-info-skill.master,
-.bg3-info-save.master {
-    border-color: rgba(155, 89, 182, 0.8);
-    box-shadow: inset 2px 0 0 rgba(155, 89, 182, 0.5);
-}
-
-.bg3-info-skill.legendary,
-.bg3-info-save.legendary {
-    border-color: rgba(231, 76, 60, 0.9);
-    box-shadow: inset 2px 0 0 rgba(231, 76, 60, 0.6);
 }

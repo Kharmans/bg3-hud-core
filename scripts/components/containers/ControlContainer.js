@@ -81,7 +81,7 @@ export class ControlContainer extends BG3Component {
             key: 'toggle-gm-hotbar',
             classes: ['hotbar-control-button'],
             icon: 'fas fa-random',
-            tooltip: 'Toggle between GM Hotbar and Token Hotbar',
+            tooltip: game.i18n.localize('bg3-hud-core.Controls.GMToggle.Tooltip'),
             onClick: async () => {
                 await this.hotbarApp.toggleGMHotbarMode();
             }
@@ -98,7 +98,7 @@ export class ControlContainer extends BG3Component {
             key: 'control-plus',
             classes: ['hotbar-control-button'],
             icon: 'fas fa-plus',
-            tooltip: 'Add Row',
+            tooltip: game.i18n.localize('bg3-hud-core.Controls.Row.Add'),
             onClick: async () => {
                 await this._addRow();
             }
@@ -115,7 +115,7 @@ export class ControlContainer extends BG3Component {
             key: 'control-minus',
             classes: ['hotbar-control-button'],
             icon: 'fas fa-minus',
-            tooltip: 'Remove Row',
+            tooltip: game.i18n.localize('bg3-hud-core.Controls.Row.Remove'),
             onClick: async () => {
                 await this._removeRow();
             }
@@ -153,7 +153,7 @@ export class ControlContainer extends BG3Component {
             key: 'control-settings',
             classes: ['hotbar-control-button'],
             icon: 'fas fa-cog',
-            tooltip: 'Settings<br>(Right-click for quick actions)',
+            tooltip: game.i18n.localize('bg3-hud-core.Controls.Settings.Tooltip'),
             onClick: async (event) => {
                 await this._openModuleSettings();
             },
@@ -402,21 +402,21 @@ export class ControlContainer extends BG3Component {
     _getCoreSettingsMenuItems() {
         return [
             {
-                label: 'Reset Layout',
+                label: game.i18n.localize('bg3-hud-core.Controls.Settings.ResetLayout'),
                 icon: 'fas fa-rotate',
                 onClick: async () => {
                     await this._resetLayout();
                 }
             },
             {
-                label: 'Clear All Items',
+                label: game.i18n.localize('bg3-hud-core.Controls.Settings.ClearAllItems'),
                 icon: 'fas fa-trash',
                 onClick: async () => {
                     await this._clearAllItems();
                 }
             },
             {
-                label: 'Save Layout as Actor Default',
+                label: game.i18n.localize('bg3-hud-core.Controls.Settings.SaveLayout'),
                 icon: 'fas fa-clone',
                 onClick: async () => {
                     await this._saveLayoutAsActorDefault();
@@ -426,14 +426,14 @@ export class ControlContainer extends BG3Component {
                 separator: true
             },
             {
-                label: 'Export Layout',
+                label: game.i18n.localize('bg3-hud-core.Controls.Settings.ExportLayout'),
                 icon: 'fas fa-file-export',
                 onClick: () => {
                     this._exportLayout();
                 }
             },
             {
-                label: 'Import Layout',
+                label: game.i18n.localize('bg3-hud-core.Controls.Settings.ImportLayout'),
                 icon: 'fas fa-file-import',
                 onClick: () => {
                     this._importLayout();

@@ -174,8 +174,8 @@ export class FilterButton extends BG3Component {
         let content = `<strong>${this.data.label}</strong>`;
 
         if (!this.data.isCustomResource) {
-            content += '<br><em>Left Click: Highlight matching items</em>';
-            content += '<br><em>Right Click: Mark as used</em>';
+            content += `<br><em>${game.i18n.localize('bg3-hud-core.Filters.LeftClick')}</em>`;
+            content += `<br><em>${game.i18n.localize('bg3-hud-core.Filters.RightClick')}</em>`;
         }
 
         return content;

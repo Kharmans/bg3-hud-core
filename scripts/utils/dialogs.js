@@ -327,7 +327,7 @@ export async function showAutoPopulateConfigDialog({
     let togglesHtml = '';
     if (toggleOptions.length > 0) {
         togglesHtml = '<div class="config-options-section">';
-        togglesHtml += '<div class="config-section-header">Options</div>';
+        togglesHtml += `<div class="config-section-header">${game.i18n.localize('bg3-hud-core.Settings.AutoPopulate.Options')}</div>`;
         for (const opt of toggleOptions) {
             const checked = config.options[opt.key] ? 'checked' : '';
             togglesHtml += `
@@ -381,7 +381,7 @@ export async function showAutoPopulateConfigDialog({
 
         return `
             <div class="config-grid-section" data-grid-index="${gridIndex}">
-                <div class="config-section-header">Hotbar Grid ${gridIndex + 1}</div>
+                <div class="config-section-header">${game.i18n.format('bg3-hud-core.Settings.AutoPopulate.HotbarGrid', { number: gridIndex + 1 })}</div>
                 ${pillsHtml}
             </div>
         `;
@@ -514,9 +514,9 @@ const PRESET_ICONS = [
  */
 export async function showViewDialog(options = {}) {
     const {
-        title = 'Create New View',
-        buttonLabel = 'Create',
-        name: initialName = 'New View',
+        title = game.i18n.localize('bg3-hud-core.Views.CreateTitle'),
+        buttonLabel = game.i18n.localize('bg3-hud-core.Views.CreateButton'),
+        name: initialName = game.i18n.localize('bg3-hud-core.Views.DefaultNewName'),
         icon: initialIcon = 'fa-bookmark'
     } = options;
 
@@ -529,12 +529,12 @@ export async function showViewDialog(options = {}) {
             <div class="bg3-create-view-dialog">
                 <div class="dialog-content">
                     <div class="dialog-section">
-                        <label class="dialog-label">View Name</label>
-                        <input type="text" class="dialog-input" name="viewName" value="${initialName}" placeholder="Enter view name..." autocomplete="off">
+                        <label class="dialog-label">${game.i18n.localize('bg3-hud-core.Views.NameLabel')}</label>
+                        <input type="text" class="dialog-input" name="viewName" value="${initialName}" placeholder="${game.i18n.localize('bg3-hud-core.Views.NamePlaceholder')}" autocomplete="off">
                     </div>
                     
                     <div class="dialog-section">
-                        <label class="dialog-label">Select Icon</label>
+                        <label class="dialog-label">${game.i18n.localize('bg3-hud-core.Views.IconLabel')}</label>
                         <div class="icon-grid">
                             ${PRESET_ICONS.map(icon => `
                                 <button type="button" class="icon-button ${icon === initialIcon ? 'selected' : ''}" data-icon="${icon}">
@@ -543,8 +543,8 @@ export async function showViewDialog(options = {}) {
                             `).join('')}
                         </div>
                         
-                        <label class="dialog-label dialog-label-small" style="margin-top: 12px;">Or enter custom Font Awesome class:</label>
-                        <input type="text" class="dialog-input dialog-input-small" name="customIcon" value="${!isPresetIcon ? initialIcon : ''}" placeholder="e.g., fa-sparkles" autocomplete="off">
+                        <label class="dialog-label dialog-label-small" style="margin-top: 12px;">${game.i18n.localize('bg3-hud-core.Views.CustomIconLabel')}</label>
+                        <input type="text" class="dialog-input dialog-input-small" name="customIcon" value="${!isPresetIcon ? initialIcon : ''}" placeholder="${game.i18n.localize('bg3-hud-core.Views.CustomIconPlaceholder')}" autocomplete="off">
                     </div>
                 </div>
             </div>
@@ -579,7 +579,7 @@ export async function showViewDialog(options = {}) {
 
                     const name = nameInput?.value?.trim();
                     if (!name) {
-                        ui.notifications.warn('View name cannot be empty');
+                        ui.notifications.warn(game.i18n.localize('bg3-hud-core.Views.ErrorEmptyName'));
                         throw new Error('Name required');
                     }
                     return { name, icon: selectedIcon };
@@ -640,9 +640,9 @@ export async function showViewDialog(options = {}) {
  */
 export async function showCreateViewDialog() {
     return showViewDialog({
-        title: 'Create New View',
-        buttonLabel: 'Create',
-        name: 'New View',
+        title: game.i18n.localize('bg3-hud-core.Views.CreateTitle'),
+        buttonLabel: game.i18n.localize('bg3-hud-core.Views.CreateButton'),
+        name: game.i18n.localize('bg3-hud-core.Views.DefaultNewName'),
         icon: 'fa-bookmark'
     });
 }
@@ -657,9 +657,9 @@ export async function showCreateViewDialog() {
  */
 export async function showEditViewDialog(view) {
     return showViewDialog({
-        title: 'Edit View',
-        buttonLabel: 'Save',
-        name: view.name || 'View',
+        title: game.i18n.localize('bg3-hud-core.Views.EditTitle'),
+        buttonLabel: game.i18n.localize('bg3-hud-core.Views.SaveButton'),
+        name: view.name || game.i18n.localize('bg3-hud-core.Views.DefaultEditName'),
         icon: view.icon || 'fa-bookmark'
     });
 }
