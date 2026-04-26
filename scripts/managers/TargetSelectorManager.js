@@ -34,9 +34,6 @@ export class TargetSelectorManager {
 
         // Original control tool state
         this._originalTool = null;
-
-        // Hook registration
-        this._targetTokenHookId = null;
     }
 
     /**
@@ -278,23 +275,6 @@ export class TargetSelectorManager {
     }
 
     /**
-     * Handle external target changes from Foundry's targetToken hook.
-     * @param {User} user - The user who changed targeting
-     * @param {Token} token - The token that was targeted/untargeted
-     * @param {boolean} targeted - Whether the token is now targeted
-     * @private
-     */
-    _onExternalTargetChange(user, token, targeted) {
-        if (!this.isActive) return;
-
-        // Sync our state with Foundry's targets
-        this.syncWithFoundryTargets();
-
-        // Update the UI
-        this.ui._updateTargetList();
-    }
-
-    /**
      * Show range indicator for an item without activating full selector.
      * Used for AoE templates or other range visualization needs.
      * @param {Object} params
@@ -356,15 +336,8 @@ export class TargetSelectorManager {
         });
         this.ui.activate(this.requirements);
 
-        // Register events
-        console.warn('BG3 HUD Core | Manager: Registering events');
+        // Register events (includes targetToken hook for real-time sync)
         this.events.registerEvents();
-
-        // Register targetToken hook for real-time sync
-        this._targetTokenHookId = Hooks.on('targetToken', (user, token, targeted) => {
-            if (user !== game.user) return;
-            this._onExternalTargetChange(user, token, targeted);
-        });
 
         // Notification
         ui.notifications.info(
@@ -397,14 +370,8 @@ export class TargetSelectorManager {
         // Restore token tool
         this._restoreTokenTool();
 
-        // Unregister events
+        // Unregister events (includes targetToken hook cleanup)
         this.events.unregisterEvents();
-
-        // Unregister targetToken hook
-        if (this._targetTokenHookId !== null) {
-            Hooks.off('targetToken', this._targetTokenHookId);
-            this._targetTokenHookId = null;
-        }
     }
 
     /**
