@@ -215,7 +215,7 @@
     transform-origin: left center;
 }
 
-/* Prevent system tooltips (dnd5e2, etc.) from showing on UI elements */
+/* Prevent native/system tooltips from showing on HUD UI elements */
 /* UI elements are marked with data-bg3-ui attribute */
 [data-bg3-ui] {
     /* Prevent browser tooltips */

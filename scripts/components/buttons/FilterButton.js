@@ -44,7 +44,7 @@ export class FilterButton extends BG3Component {
             ...this.data.classes
         ]);
 
-        // Mark as UI element to prevent system tooltips (dnd5e2, etc.) from showing
+        // Mark as HUD UI — native/system rich tooltips are suppressed here
         this.element.dataset.bg3Ui = 'true';
 
         // Set color
@@ -84,7 +84,7 @@ export class FilterButton extends BG3Component {
 
             this.element.appendChild(track);
         }
-        // Add centered label for filters without pips (e.g., PF2e spell ranks)
+        // Add centered label for filters without pips (e.g., rank labels)
         else if (this.data.centerLabel) {
             const centerSpan = document.createElement('span');
             centerSpan.classList.add('filter-center-label');

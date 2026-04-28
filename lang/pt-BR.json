@@ -172,7 +172,7 @@
         "Title": "Configuração de Dados do Retrato",
         "MenuName": "Dados do Retrato",
         "MenuLabel": "Configurar Dados do Retrato",
-        "MenuHint": "Exibe indicadores de dados ao redor do retrato (CA, Deslocamento, Pontos Heróicos, etc.)",
+        "MenuHint": "Exibe indicadores de dados ao redor do retrato (CA, PV, deslocamento, etc.)",
         "ShowName": "Mostrar Dados no Retrato",
         "ShowHint": "Exibe indicadores de dados ao redor do retrato",
         "TopLeft": "Superior Esquerdo",

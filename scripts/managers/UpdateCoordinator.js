@@ -231,8 +231,7 @@ export class UpdateCoordinator {
             return;
         }
 
-        // Check for adapter flags (system-specific)
-        // Get adapter module ID dynamically
+        // Actor flag deltas keyed by adapter module (`flags[adapter.MODULE_ID]`)
         const adapter = BG3HUD_REGISTRY.activeAdapter;
 
         // NOTE: Depletion states are now updated AFTER all handlers complete
@@ -264,7 +263,7 @@ export class UpdateCoordinator {
             // Don't return early - other handlers might also need to run
         }
 
-        // Check for spell slot changes (very common in D&D 5e)
+        // Check for spell slot changes (common on many systems)
         const spellsChanged = changes?.system?.spells;
         if (spellsChanged) {
             if (await this._handleResourceChange()) {
@@ -383,54 +382,22 @@ export class UpdateCoordinator {
     }
 
     /**
-     * Handle adapter flag changes
-     * System-specific flags (e.g., selectedPassives in D&D 5e)
+     * Delegate `flags[adapter.MODULE_ID]` deltas to the active adapter.
      * @param {Object} adapterFlags
      * @returns {Promise<boolean>} True if handled
      * @private
      */
     async _handleAdapterFlags(adapterFlags) {
-        let handled = false;
-
-        // Selected passives (D&D 5e specific)
-        if (Object.prototype.hasOwnProperty.call(adapterFlags, 'selectedPassives')) {
-            if (this.hotbarApp.components?.hotbar?.passivesContainer) {
-                await this.hotbarApp.components.hotbar.passivesContainer.render();
-                handled = true;
+        const adapter = BG3HUD_REGISTRY.activeAdapter;
+        if (adapter && typeof adapter.onAdapterFlagsChanged === 'function') {
+            try {
+                return !!(await adapter.onAdapterFlagsChanged(adapterFlags, this.hotbarApp));
+            } catch (e) {
+                console.error('[bg3-hud-core] onAdapterFlagsChanged failed:', e);
+                return false;
             }
         }
-
-        // Portrait image preference (D&D 5e specific)
-        if (Object.prototype.hasOwnProperty.call(adapterFlags, 'useTokenImage') ||
-            Object.prototype.hasOwnProperty.call(adapterFlags, 'scaleWithToken')) {
-            const portraitContainer = this.hotbarApp.components?.portrait;
-            if (portraitContainer) {
-                // Re-render the portrait to show the new image/scale
-                await portraitContainer.render();
-                handled = true;
-            }
-        }
-
-        // Situational bonuses state (e.g., advState, advOnce for D&D 5e)
-        // Only update button states, no full re-render
-        const advStateKeys = ['advState', '-=advState'];
-        const advOnceKeys = ['advOnce', '-=advOnce'];
-        const advStateChanged = advStateKeys.some((key) => Object.prototype.hasOwnProperty.call(adapterFlags, key));
-        const advOnceChanged = advOnceKeys.some((key) => Object.prototype.hasOwnProperty.call(adapterFlags, key));
-
-        if (advStateChanged || advOnceChanged) {
-            const situationalBonusesContainer = this.hotbarApp.components?.situationalBonuses;
-            if (situationalBonusesContainer && typeof situationalBonusesContainer.updateButtons === 'function') {
-                // Only update button visual states, not full re-render
-                situationalBonusesContainer.updateButtons();
-                handled = true;
-            }
-        }
-
-        // Add more adapter-specific flag handlers here as needed
-        // This keeps the core system-agnostic while allowing adapter updates
-
-        return handled;
+        return false;
     }
 
     /**

@@ -6,7 +6,7 @@
 export class TargetSelectorMath {
     /**
      * Calculate distance between two tokens using edge-to-edge grid-based measurement.
-     * Uses D&D 5e/PF2e style diagonal counting (Chebyshev distance).
+     * Uses Chebyshev distance (common for square grid diagonals).
      * @param {Token} sourceToken - The source token
      * @param {Token} targetToken - The target token
      * @returns {number} Distance in GRID SQUARES (not feet/meters)

@@ -48,7 +48,7 @@ export class TooltipManager {
     _init() {
         // Create tooltip container
         // Use our own ID to avoid interfering with system tooltips
-        // System adapters can override this ID if needed (e.g., dnd5e adapter changes to #tooltip)
+        // System adapters may set a different element ID to match system tooltip CSS
         this.tooltipElement = document.createElement('div');
         this.tooltipElement.id = 'bg3-tooltip';
         this.tooltipElement.classList.add('bg3-tooltip');
@@ -57,7 +57,7 @@ export class TooltipManager {
         // Listen for data-tooltip attributes
         this._observeTooltipAttributes();
 
-        // Prevent system tooltips (dnd5e2, etc.) from showing on UI elements
+        // Prevent native/system rich tooltips from showing on HUD chrome
         // This must run BEFORE system tooltip handlers, so use capture phase with high priority
         this._preventSystemTooltips = this._preventSystemTooltips.bind(this);
         document.addEventListener('mouseenter', this._preventSystemTooltips, true);
@@ -113,7 +113,7 @@ export class TooltipManager {
 
     /**
      * Register a tooltip renderer for a system
-     * @param {string} systemId - System ID (e.g., 'dnd5e', 'pf2e')
+     * @param {string} systemId - Foundry system id (`game.system.id`)
      * @param {Function} renderer - Renderer function that returns tooltip content
      * @param {Object} renderer.data - Data object (item, spell, etc.)
      * @param {Object} renderer.options - Rendering options
@@ -444,77 +444,23 @@ export class TooltipManager {
 
 
     /**
-     * Prevent system tooltips (dnd5e2, etc.) from showing on BG3 HUD UI elements only
-     * Only blocks tooltips within .bg3-hud or #bg3-hotbar-container scope
-     * System tooltips work normally everywhere else (character sheets, inventory, etc.)
+     * Block native/system tooltip delivery on HUD chrome (no item `data-uuid`).
+     * Adapters register `tooltipClassBlacklist` on `registerAdapter()` for documentation and
+     * tooling; this handler uses scope + uuid only (no hard-coded system class strings).
      * @private
      * @param {MouseEvent} event - Mouse event
      */
     _preventSystemTooltips(event) {
         if (!event.target || typeof event.target.closest !== 'function') return;
-        const isHoverMoveEvent = event.type === 'mouseover' || event.type === 'mouseout' ||
-            event.type === 'pointerover' || event.type === 'pointerout';
 
-        // Only prevent system tooltips within BG3 HUD scope
-        // Let system tooltips work normally everywhere else
         const isWithinBG3HUD = event.target.closest('.bg3-hud, #bg3-hotbar-container, .bg3-container-popover') !== null;
-        if (!isWithinBG3HUD) {
-            return; // Allow system tooltips outside BG3 HUD
-        }
+        if (!isWithinBG3HUD) return;
 
-        // Allow system tooltips for real game items (must carry data-uuid)
         const hasUuid = event.target.closest('[data-uuid]') !== null;
-        if (hasUuid) {
-            return;
-        }
+        if (hasUuid) return;
 
-        // For HUD UI (no uuid), block system tooltips early but allow our own listeners on this node
         event.stopPropagation();
-        event.preventDefault();
-        return;
-
-        // Legacy handling below kept for safety with dnd5e class checks
-
-        // Within BG3 HUD scope: check if this is a UI element (button, control, etc.)
-        const target = event.target.closest('[data-bg3-ui]');
-        if (!target) {
-            // Also check for elements with data-tooltipClass containing dnd5e classes but no data-uuid
-            // These are UI elements incorrectly trying to use dnd5e tooltips
-            let elementWithTooltipClass = event.target;
-            while (elementWithTooltipClass && elementWithTooltipClass !== document.body) {
-                if (elementWithTooltipClass.dataset?.tooltipClass) {
-                    const tooltipClass = elementWithTooltipClass.dataset.tooltipClass || '';
-                    const hasDnd5eClasses = tooltipClass.includes('dnd5e2') || tooltipClass.includes('dnd5e-tooltip');
-                    const hasUuidClass = elementWithTooltipClass.hasAttribute('data-uuid') ||
-                        elementWithTooltipClass.closest('[data-uuid]') !== null;
-
-                    // If it has dnd5e classes but no uuid, it's a UI element - prevent system tooltips
-                    if (hasDnd5eClasses && !hasUuidClass) {
-                        event.stopPropagation();
-                        event.stopImmediatePropagation();
-                        return;
-                    }
-                }
-                elementWithTooltipClass = elementWithTooltipClass.parentElement;
-            }
-            return;
-        }
-
-        // Check if this UI element is part of a game item (has data-uuid)
-        // Game items should still show tooltips (custom BG3 HUD ones)
-        const isGameItem = target.hasAttribute('data-uuid') ||
-            target.closest('[data-uuid]') !== null;
-
-        // Also check if element has data-tooltipClass with dnd5e classes but no data-uuid
-        const tooltipClass = target.dataset.tooltipClass || '';
-        const hasDnd5eClasses = tooltipClass.includes('dnd5e2') || tooltipClass.includes('dnd5e-tooltip');
-        const hasIncorrectDnd5eTooltip = hasDnd5eClasses && !isGameItem;
-
-        // Only prevent system tooltips on pure UI elements within BG3 HUD scope
-        if (!isGameItem || hasIncorrectDnd5eTooltip) {
-            event.stopPropagation();
-            event.stopImmediatePropagation();
-        }
+        event.preventDefault?.();
     }
 
     /**

@@ -32,7 +32,7 @@ export class BaseButton extends BG3Component {
         // Create button element
         this.element = this.createElement('button', ['bg3-button', ...this.classes]);
 
-        // Mark as UI element to prevent system tooltips (dnd5e2, etc.) from showing
+        // Mark as HUD UI — native/system rich tooltips are suppressed here
         this.element.dataset.bg3Ui = 'true';
 
         // Add data-key attribute if provided

@@ -222,7 +222,7 @@ export class ItemUpdateManager {
     async _updateItemInActorHotbar(persistenceManager, state, item, actor) {
         const adapter = this._getAdapter();
 
-        // Handle spell preparation state changes (D&D 5e specific, but adapter-agnostic)
+        // Handle spell preparation state changes (shape varies by system; adapters may override enforcement)
         if (item.type === 'spell') {
             // Check if adapter has spell preparation enforcement logic
             // If adapter provides it, use it; otherwise default to checking preparation state

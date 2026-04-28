@@ -160,7 +160,7 @@ export class WeaponSetContainer extends BG3Component {
             gridContainer.element.classList.add('bg3-weapon-set');
             gridContainer.element.dataset.containerIndex = i;
             gridContainer.element.dataset.setId = i;
-            // Mark as UI element to prevent system tooltips (dnd5e2, etc.) from showing
+            // Mark as HUD UI — native/system rich tooltips are suppressed here
             gridContainer.element.dataset.bg3Ui = 'true';
             
             // Add click handler to switch sets

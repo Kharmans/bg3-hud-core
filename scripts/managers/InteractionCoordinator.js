@@ -498,7 +498,7 @@ export class InteractionCoordinator {
             return;
         }
 
-        const { document, type } = result;
+        const { document, type, augment } = result;
         const isMacro = type === 'Macro';
         const isActivity = type === 'Activity';
 
@@ -546,6 +546,10 @@ export class InteractionCoordinator {
             }
         } else {
             cellData = await this._transformItemToCellData(document);
+        }
+
+        if (augment && typeof augment === 'object' && cellData) {
+            Object.assign(cellData, augment);
         }
 
         if (!cellData) {
@@ -603,14 +607,21 @@ export class InteractionCoordinator {
     }
 
     /**
-     * Get document from drag data (supports Item, Macro, Activity, and PF2e Action)
+     * Resolve drag-transfer JSON to a document adapters can augment (see BG3HudDragResolution).
      * @param {DragEvent} event
-     * @returns {Promise<{document: Document, type: string, pf2eActionIndex?: number}|null>}
+     * @returns {Promise<null|{ document: Document, type: string, augment?: Record<string, unknown> }>}
      * @private
      */
     async _getDocumentFromDragData(event) {
         try {
             const dragData = JSON.parse(event.dataTransfer.getData('text/plain'));
+
+            if (this.adapter && typeof this.adapter.resolveExternalDragData === 'function') {
+                const adapterResult = await this.adapter.resolveExternalDragData(dragData, event);
+                if (adapterResult) {
+                    return adapterResult;
+                }
+            }
 
             if (dragData.type === 'Item' || dragData.type === 'Macro') {
                 const document = await fromUuid(dragData.uuid);
@@ -619,30 +630,11 @@ export class InteractionCoordinator {
                 }
             }
 
-            // Handle Activity type (D&D 5e v5+)
+            // Activity payloads (embedded document UUID)
             if (dragData.type === 'Activity' && dragData.uuid) {
                 const activity = await fromUuid(dragData.uuid);
                 if (activity) {
                     return { document: activity, type: 'Activity' };
-                }
-            }
-
-            // Handle PF2e Action type (strikes from actor.system.actions)
-            if (dragData.type === 'Action' && dragData.actorUUID !== undefined) {
-                const actor = await fromUuid(dragData.actorUUID);
-                if (actor) {
-                    const actionIndex = dragData.index;
-                    const strike = actor.system?.actions?.[actionIndex];
-                    if (strike?.item) {
-                        // Return the strike's underlying weapon/item
-                        // Pass the action index for PF2e adapter to use
-                        return {
-                            document: strike.item,
-                            type: 'Item',
-                            pf2eActionIndex: actionIndex,
-                            pf2eStrikeSlug: strike.slug
-                        };
-                    }
                 }
             }
         } catch (e) {

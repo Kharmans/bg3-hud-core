@@ -174,7 +174,7 @@
         "Title": "Portrait Data Configuration",
         "MenuName": "Portrait Data",
         "MenuLabel": "Configure Portrait Data",
-        "MenuHint": "Display data badges around the portrait (AC, Speed, Hero Points, etc.)",
+        "MenuHint": "Display data badges around the portrait (AC, HP, speed, etc.)",
         "ShowName": "Show Portrait Data",
         "ShowHint": "Display data badges around the character portrait",
         "TopLeft": "Top Left",

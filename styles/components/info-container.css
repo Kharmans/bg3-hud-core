@@ -5,7 +5,7 @@
  * Layout:
  *   [Ability Header Row] — 6 blocks with icon, name, score, d20 modifier
  *   [Skills Grid]        — 3 columns of all skills
- *   [Saves Section]      — optional, system-specific (e.g., PF2e Fort/Ref/Will)
+ *   [Saves Section]      — optional, system-specific defence saves layout
  */
 
 /* ──────────────────────────────────────────────
@@ -284,7 +284,7 @@
 }
 
 /* ──────────────────────────────────────────────
-   Saves Section (PF2e-style: Fort/Ref/Will — 3 horizontal d20 blocks)
+   Saves Section (three-save layout — horizontal d20 blocks when provided by adapter)
    ────────────────────────────────────────────── */
 
 .bg3-info-saves {

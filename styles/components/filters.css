@@ -91,7 +91,7 @@
     pointer-events: none;
 }
 
-/* Centered label (for filters without pips, e.g., PF2e spell ranks) */
+/* Centered label (for filters without pips — e.g. rank labels) */
 .bg3-filter-button .filter-center-label {
     font-size: calc(1.1em * var(--filter-scale));
     font-weight: bold;
@@ -217,7 +217,7 @@
     filter: none;
 }
 
-/* Expended spells (PF2e) - higher priority than .used */
+/* Expended spell rows — higher priority than .used */
 .bg3-grid-cell.expended,
 .bg3-grid-cell.expended.used,
 .bg3-grid-cell.expended[data-highlight] {

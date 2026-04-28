@@ -33,6 +33,24 @@ export const BG3HUD_REGISTRY = {
 };
 
 /**
+ * Optional methods system adapters MAY implement beyond MODULE_ID/systemId/registerAdapter config.
+ *
+ * @typedef {Object} BG3HudAdapterHooks
+ * @property {Function} [resolveExternalDragData] Parsed drag payload from `JSON.parse(transfer)`. Return a
+ *   result to consume the drop; return `null` to let core handle Item/Macro/Activity only.
+ *   @returns {Promise<null|BG3HudDragResolution>}
+ * @property {Function} [onAdapterFlagsChanged] Respond to Foundry deltas under `changes.flags[MODULE_ID]` for the active actor.
+ *   @returns {Promise<boolean>} `true` if the adapter handled targeted UI updates for this delta.
+ */
+
+/**
+ * @typedef {Object} BG3HudDragResolution
+ * @property {foundry.abstract.Document} document
+ * @property {'Item'|'Macro'|'Activity'} type
+ * @property {Record<string, unknown>} [augment] Merged onto cell data after adapter `transform*` (e.g. strike metadata).
+ */
+
+/**
  * BG3 HUD API
  * Methods for system adapters to register components
  */
@@ -122,8 +140,8 @@ export const BG3HUD_API = {
     /**
      * Register a system adapter
      * @param {Object} adapter - System adapter instance
-     * @param {string} adapter.MODULE_ID - Required: The module ID (e.g., 'bg3-hud-dnd5e')
-     * @param {string} adapter.systemId - Required: The Foundry system ID (e.g., 'dnd5e')
+     * @param {string} adapter.MODULE_ID - Required: The adapter package ID (must match manifest `id`)
+     * @param {string} adapter.systemId - Required: Foundry system id (`game.system.id`) this adapter targets
      * @param {string} [adapter.name] - Optional: Display name for the adapter
      * @param {Object} [config] - Optional: Adapter configuration
      * @param {string[]} [config.tooltipClassBlacklist] - CSS classes to filter from UI tooltips
@@ -178,15 +196,15 @@ export const BG3HUD_API = {
     },
 
     /**
-     * Register a tooltip renderer for a system
-     * @param {string} systemId - System ID (e.g., 'dnd5e', 'pf2e', 'dc20rpg')
+     * Register a tooltip renderer for the current game system
+     * @param {string} systemId - System ID matching `game.system.id`
      * @param {Function} renderer - Renderer function that returns tooltip content
      * @param {Object} renderer.data - Data object (item, spell, etc.)
      * @param {Object} renderer.options - Rendering options
      * @returns {Promise<Object>} Object with { content: string|HTMLElement, classes?: string[], direction?: string }
      * 
      * @example
-     * BG3HUD_API.registerTooltipRenderer('dnd5e', async (data, options) => {
+     * BG3HUD_API.registerTooltipRenderer(game.system.id, async (data, options) => {
      *   const html = await renderTemplate('path/to/template.hbs', data);
      *   return {
      *     content: html,
@@ -221,15 +239,15 @@ export const BG3HUD_API = {
     },
 
     /**
-     * Register a menu builder for a system
-     * @param {string} systemId - System ID (e.g., 'dnd5e', 'pf2e', 'dc20rpg')
+     * Register a menu builder for the current game system
+     * @param {string} systemId - System ID matching `game.system.id`
      * @param {Class} builderClass - MenuBuilder class (or subclass)
      * @param {Object} [options] - Options for the menu builder
      * @param {Object} [options.adapter] - Adapter instance to pass to builder
      * 
      * @example
-     * import { DnD5eMenuBuilder } from './components/menus/DnD5eMenuBuilder.js';
-     * BG3HUD_API.registerMenuBuilder('dnd5e', DnD5eMenuBuilder, { adapter: this });
+     * import { MenuBuilder } from './components/menus/MyMenuBuilder.js';
+     * BG3HUD_API.registerMenuBuilder(game.system.id, MenuBuilder, { adapter: this });
      */
     registerMenuBuilder(systemId, builderClass, options = {}) {
         console.info(`[bg3-hud-core] Registering menu builder for system '${systemId}':`, builderClass.name);

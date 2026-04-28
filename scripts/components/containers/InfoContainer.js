@@ -34,7 +34,7 @@ export class InfoContainer extends BG3Component {
 
             // Create toggle button (positioned above portrait)
             const button = this.createElement('button', ['bg3-info-button']);
-            // Mark as UI element to prevent system tooltips (dnd5e2, etc.) from showing
+            // Mark as HUD UI — native/system rich tooltips are suppressed here
             button.dataset.bg3Ui = 'true';
             button.innerHTML = '<i class="fas fa-dice-d20"></i>';
             const infoTooltip = game.i18n.localize('bg3-hud-core.Tooltips.InfoButton');
