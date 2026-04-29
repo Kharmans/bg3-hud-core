@@ -130,32 +130,37 @@ export class ContainerPopover extends BG3Component {
         const triggerRect = this.triggerElement.getBoundingClientRect();
         const hudContainer = ui.BG3HUD_APP?.element?.querySelector('#bg3-hotbar-container');
         
-        // Calculate popover dimensions based on grid size
+        // Calculate popover dimensions from current data/grid variables.
         const rootStyles = getComputedStyle(document.documentElement);
         const cellSize = parseInt(rootStyles.getPropertyValue('--bg3-cell-size').trim()) || 50;
         const gridGap = parseInt(rootStyles.getPropertyValue('--bg3-grid-gap').trim()) || 2;
-        
-        const cols = 5;
-        const rows = 3;
+        const cols = this.gridContainer?.cols || this.triggerCell?.data?.containerGrid?.cols || 5;
         const popoverWidth = (cellSize * cols) + (gridGap * (cols - 1)) + (gridGap * 2);
         
         if (hudContainer) {
             // Position relative to HUD container (absolute positioning)
             const containerRect = hudContainer.getBoundingClientRect();
             // Center horizontally over trigger
-            const left = triggerRect.left - containerRect.left + (triggerRect.width / 2) - (popoverWidth / 2);
+            let left = triggerRect.left - containerRect.left + (triggerRect.width / 2) - (popoverWidth / 2);
             // Position above trigger: distance from container bottom to trigger top + gap
             const bottom = containerRect.bottom - triggerRect.top + 10;
-            
+
+            // Keep within container bounds.
+            const minLeft = 0;
+            const maxLeft = Math.max(0, containerRect.width - popoverWidth);
+            left = Math.max(minLeft, Math.min(maxLeft, left));
+
             return {
                 left: `${left}px`,
                 bottom: `${bottom}px`
             };
         } else {
             // Fallback: position relative to viewport (fixed positioning)
-            const left = triggerRect.left + (triggerRect.width / 2) - (popoverWidth / 2);
+            let left = triggerRect.left + (triggerRect.width / 2) - (popoverWidth / 2);
             const bottom = window.innerHeight - triggerRect.top + 10;
-            
+
+            left = Math.max(8, Math.min(window.innerWidth - popoverWidth - 8, left));
+
             return {
                 left: `${left}px`,
                 bottom: `${bottom}px`

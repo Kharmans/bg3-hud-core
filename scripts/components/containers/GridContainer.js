@@ -130,26 +130,20 @@ export class GridContainer extends BG3Component {
     _areCellDatasEqual(a, b) {
         if (a === b) return true;
         if (!a || !b) return false;
-        
-        // Compare core properties
+
+        // Compare stable render-critical fields. Adapter-specific metadata is
+        // intentionally ignored here; targeted refresh paths handle metadata-only
+        // changes so we never pay deep-diff cost on every render.
         if (a.uuid !== b.uuid) return false;
         if (a.img !== b.img) return false;
         if (a.name !== b.name) return false;
         if (a.type !== b.type) return false;
-        
-        // Compare quantity
-        const aq = a.quantity || 0, bq = b.quantity || 0;
-        if (aq !== bq) return false;
-        
-        // Compare uses
-        const au = a.uses || {}, bu = b.uses || {};
-        if ((au.value || 0) !== (bu.value || 0)) return false;
-        if ((au.max || 0) !== (bu.max || 0)) return false;
-        
-        // For anything more complex (nested metadata), do a JSON comparison
-        // This catches adapter-specific fields without knowing them in advance
-        if (JSON.stringify(a) !== JSON.stringify(b)) return false;
-        
+        if ((a.quantity || 0) !== (b.quantity || 0)) return false;
+        if ((a.uses?.value || 0) !== (b.uses?.value || 0)) return false;
+        if ((a.uses?.max || 0) !== (b.uses?.max || 0)) return false;
+        if (!!a.depleted !== !!b.depleted) return false;
+        if (!!a.expended !== !!b.expended) return false;
+
         return true;
     }
 

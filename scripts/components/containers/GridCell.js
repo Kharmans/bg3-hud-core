@@ -58,6 +58,7 @@ export class GridCell extends BG3Component {
             this.element = this.createElement('div', ['bg3-grid-cell']);
         }
         this.element.dataset.index = this.index;
+        this._resetRenderedState();
 
         // Add empty state
         if (this.isEmpty) {
@@ -91,11 +92,9 @@ export class GridCell extends BG3Component {
      * @private
      */
     _renderEmptyState() {
-        // Clear tooltip-related data attributes to prevent ghost tooltips
-        // These could remain from a previously filled cell
-        this.element.removeAttribute('data-uuid');
-        this.element.removeAttribute('data-slot');
+        // Clear tooltip-related data attributes to prevent ghost tooltips.
         this.element.removeAttribute('data-tooltip');
+        this.element.removeAttribute('data-tooltip-direction');
         this.element.removeAttribute('draggable');
 
         const placeholder = this.createElement('div', ['bg3-cell-placeholder']);
@@ -203,6 +202,7 @@ export class GridCell extends BG3Component {
                     return;
                 }
 
+                this.element.classList.remove('hover', 'drag-over');
                 this.element.classList.add('dragging');
                 document.body.classList.add('dragging-active');
 
@@ -225,7 +225,7 @@ export class GridCell extends BG3Component {
 
         if (this.options.onDragEnd) {
             this.addEventListener(this.element, 'dragend', (event) => {
-                this.element.classList.remove('dragging');
+                this.element.classList.remove('dragging', 'hover', 'drag-over');
                 document.body.classList.remove('dragging-active');
                 this.options.onDragEnd(this, event);
             });
@@ -323,7 +323,7 @@ export class GridCell extends BG3Component {
 
         if (this.element) {
             // Clear current content
-            this.element.innerHTML = '';
+            this._resetRenderedState();
             this.element.classList.toggle('empty', this.isEmpty);
             this.element.classList.toggle('filled', !this.isEmpty);
 
@@ -355,5 +355,16 @@ export class GridCell extends BG3Component {
      */
     clear() {
         this.setData(null);
+    }
+
+    _resetRenderedState() {
+        this.element.innerHTML = '';
+        this.element.classList.remove('empty', 'filled', 'hover', 'drag-over', 'dragging');
+        this.element.removeAttribute('data-uuid');
+        this.element.removeAttribute('data-slot');
+        this.element.removeAttribute('data-tooltip');
+        this.element.removeAttribute('data-tooltip-direction');
+        this.element.removeAttribute('draggable');
+        this.element.draggable = false;
     }
 }

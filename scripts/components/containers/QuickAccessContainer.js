@@ -58,42 +58,41 @@ export class QuickAccessContainer extends BG3Component {
             this.element = this.createElement('div', ['bg3-quick-access-container']);
         }
 
-        // Clear existing
-        this.element.innerHTML = '';
-        this.gridContainers = [];
-
         // Create single grid container (QuickAccess only has one grid)
         const gridData = this.grids[0];
         const itemsMap = gridData.items || {};
+        let gridContainer = this.gridContainers[0];
+        if (!gridContainer) {
+            gridContainer = new GridContainer({
+                rows: gridData.rows,
+                cols: gridData.cols,
+                items: itemsMap,
+                id: 'quick-access',
+                index: 0,
+                containerType: 'quickAccess',
+                containerIndex: 0,
+                persistenceManager: this.persistenceManager,
+                actor: this.actor,
+                token: this.token,
+                onCellClick: this.onCellClick,
+                onCellRightClick: this.onCellRightClick,
+                onCellDragStart: this.onCellDragStart,
+                onCellDragEnd: this.onCellDragEnd,
+                onCellDrop: this.onCellDrop,
+                decorateCellElement: this.options?.decorateCellElement
+            });
+            this.gridContainers[0] = gridContainer;
+        } else {
+            gridContainer.rows = gridData.rows;
+            gridContainer.cols = gridData.cols;
+            gridContainer.items = itemsMap;
+        }
 
-        const gridContainer = new GridContainer({
-            rows: gridData.rows,
-            cols: gridData.cols,
-            items: itemsMap,
-            id: 'quick-access',
-            index: 0,
-            containerType: 'quickAccess',
-            containerIndex: 0,
-            persistenceManager: this.persistenceManager,
-            actor: this.actor,
-            token: this.token,
-            onCellClick: this.onCellClick,
-            onCellRightClick: this.onCellRightClick,
-            onCellDragStart: this.onCellDragStart,
-            onCellDragEnd: this.onCellDragEnd,
-            onCellDrop: this.onCellDrop,
-            decorateCellElement: this.options?.decorateCellElement
-        });
-        
-        // Store in array for consistency
-        this.gridContainers[0] = gridContainer;
-        
-        // Render first to create the element
         await gridContainer.render();
-        
-        // Add CSS class
         gridContainer.element.classList.add('bg3-quick-access-grid');
-        this.element.appendChild(gridContainer.element);
+        if (gridContainer.element.parentElement !== this.element) {
+            this.element.appendChild(gridContainer.element);
+        }
 
         return this.element;
     }

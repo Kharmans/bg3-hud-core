@@ -13,6 +13,7 @@ export class ControlContainer extends BG3Component {
     constructor(options = {}) {
         super(options);
         this.hotbarApp = options.hotbarApp; // Reference to BG3Hotbar
+        this._rowOpInProgress = false;
     }
 
     /**
@@ -168,33 +169,7 @@ export class ControlContainer extends BG3Component {
      * @private
      */
     async _addRow() {
-        if (!this.hotbarApp || !this.hotbarApp.components.hotbar) {
-            console.warn('[bg3-hud-core] No hotbar to add row to');
-            return;
-        }
-
-        const hotbarContainer = this.hotbarApp.components.hotbar;
-
-        // Load fresh state from persistence to ensure items are current
-        // This prevents stale data when items were moved via drag-drop
-        const state = await this.hotbarApp.persistenceManager.loadState();
-
-        // Add row to each grid data
-        for (let i = 0; i < hotbarContainer.grids.length; i++) {
-            hotbarContainer.grids[i].rows++;
-        }
-
-        // Update each grid container individually (no full re-render)
-        for (let i = 0; i < hotbarContainer.gridContainers.length; i++) {
-            const gridContainer = hotbarContainer.gridContainers[i];
-            gridContainer.rows = hotbarContainer.grids[i].rows;
-            // Sync items from persistence state to ensure current data
-            gridContainer.items = state.hotbar?.grids?.[i]?.items || {};
-            await gridContainer.render();
-        }
-
-        // Save to persistence - update all grids at once
-        await this.hotbarApp.persistenceManager.updateAllGridsRows(1);
+        await this._applyRowDelta(1);
     }
 
     /**
@@ -202,38 +177,54 @@ export class ControlContainer extends BG3Component {
      * @private
      */
     async _removeRow() {
-        if (!this.hotbarApp || !this.hotbarApp.components.hotbar) {
-            console.warn('[bg3-hud-core] No hotbar to remove row from');
+        await this._applyRowDelta(-1);
+    }
+
+    /**
+     * Optimistic row height change for all hotbar grids: mutate runtime models, render in parallel, one coalesced save.
+     * Removing rows only lowers `rows`; items in slots beyond the visible area stay in `items` and show again when rows increase.
+     * @param {number} delta - +1 or -1
+     * @private
+     */
+    async _applyRowDelta(delta) {
+        if (this._rowOpInProgress) return;
+
+        if (!this.hotbarApp?.components?.hotbar) {
+            console.warn('[bg3-hud-core] No hotbar to change row count');
             return;
         }
 
         const hotbarContainer = this.hotbarApp.components.hotbar;
 
-        // Check if we can remove a row (minimum 1 row)
-        if (hotbarContainer.grids[0].rows <= 1) {
-            return;
+        if (delta < 0) {
+            const minRows = Math.min(...hotbarContainer.grids.map(g => g.rows ?? 0));
+            if (minRows + delta < 1) {
+                ui.notifications?.warn(game.i18n.localize('bg3-hud-core.Notifications.MinRowsReached'));
+                return;
+            }
         }
 
-        // Load fresh state from persistence to ensure items are current
-        // This prevents stale data when items were moved via drag-drop
-        const state = await this.hotbarApp.persistenceManager.loadState();
+        this._rowOpInProgress = true;
+        try {
+            for (let i = 0; i < hotbarContainer.grids.length; i++) {
+                // Shrinking rows only hides slots; item data in overflow keys stays in `items` for when rows grow again.
+                hotbarContainer.grids[i].rows += delta;
+            }
 
-        // Remove row from each grid data
-        for (let i = 0; i < hotbarContainer.grids.length; i++) {
-            hotbarContainer.grids[i].rows--;
+            const renders = [];
+            for (let i = 0; i < hotbarContainer.gridContainers.length; i++) {
+                const gridContainer = hotbarContainer.gridContainers[i];
+                const gridData = hotbarContainer.grids[i];
+                gridContainer.rows = gridData.rows;
+                hotbarContainer.grids[i].items = gridContainer.items;
+                renders.push(gridContainer.render());
+            }
+
+            await Promise.all(renders);
+            await this.hotbarApp.persistenceManager.persistHotbarGridsFromRuntime(hotbarContainer.grids);
+        } finally {
+            this._rowOpInProgress = false;
         }
-
-        // Update each grid container individually (no full re-render)
-        for (let i = 0; i < hotbarContainer.gridContainers.length; i++) {
-            const gridContainer = hotbarContainer.gridContainers[i];
-            gridContainer.rows = hotbarContainer.grids[i].rows;
-            // Sync items from persistence state to ensure current data
-            gridContainer.items = state.hotbar?.grids?.[i]?.items || {};
-            await gridContainer.render();
-        }
-
-        // Save to persistence - update all grids at once
-        await this.hotbarApp.persistenceManager.updateAllGridsRows(-1);
     }
 
     /**

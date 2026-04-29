@@ -1,9 +1,14 @@
 ## [0.3.0] - 2026-04-28
 
 ### Changed
-- Mostly behind-the-scenes: wired things so game-specific behaviour lives in the companion system modules instead of stuffed into core. Behaviour should feel the same at the table; it’s housekeeping for folks who hack or maintain the HUD.
-- Portrait badge settings show friendlier placeholder examples so one rule set isn’t baked into the text (Brazilian strings updated too).
-- Tooltips from the sheets are less likely to pop up weirdly over HUD buttons — same HUD, fewer odd overlaps.
+- **Core/Adapter Separation**: Wired game-specific behaviour into companion system modules instead of core. Table behaviour stays the same; this is maintenance housekeeping for folks who hack or maintain the HUD.
+- **Portrait Badge Placeholders**: Updated portrait badge settings with friendlier placeholder examples so one rule set is not baked into the text (Brazilian strings updated too).
+- **Tooltip Overlap Handling**: Sheet tooltips are less likely to pop up oddly over HUD buttons — same HUD, fewer weird overlaps.
+- **Name-only Tooltips Option**: Added support for showing simple name-only HUD tooltips as an optional display mode.
+
+### Fixed
+- **Drag + Resize Persistence**: Dragging an item and then resizing with a drag bar no longer snaps the item back to an older slot. Runtime grid state now stays in sync with queued persistence saves, so moved items stick without needing a manual HUD re-render.
+- **Macro Bar Visibility Reliability**: Hardened "Hide Foundry Macro Bar" behaviour across all modes (`Always Hide`, `Never Hide`, `Hide When BG3 HUD Visible`, `Fully Hidden`) so token select/deselect and initial load state consistently apply the intended visibility. This also addresses duplicate reports around #8, #25, and #29.
 
 ## [0.2.6] - 2026-04-25
 

@@ -29,6 +29,10 @@ export class HotbarContainer extends BG3Component {
         this.dragBars = [];
         this.activeEffectsContainer = null;
         this.passivesContainer = null;
+        this._dragPreviewFrame = null;
+        this._pendingDragPreview = null;
+        this._dragRenderInFlight = false;
+        this._dragRenderQueued = false;
     }
     
     /**
@@ -188,19 +192,12 @@ export class HotbarContainer extends BG3Component {
      * @private
      */
     async _onDragBarMove(bar, deltaX) {
-        // Calculate cell width dynamically from CSS variables
-        const computedStyle = getComputedStyle(document.documentElement);
-        const cellSize = parseFloat(computedStyle.getPropertyValue('--bg3-hotbar-cell-size')) || 50;
-        const gridGap = parseFloat(computedStyle.getPropertyValue('--bg3-grid-gap')) || 2;
-        const cellWidth = cellSize + gridGap + 2; // cell + gap + border
-        const deltaColsRounded = Math.round(deltaX / cellWidth);
-
         // Get the two grid containers
         const leftGridContainer = this.gridContainers[bar.index];
         const rightGridContainer = this.gridContainers[bar.index + 1];
         const leftGrid = this.grids[bar.index];
         const rightGrid = this.grids[bar.index + 1];
-        
+
         if (!leftGridContainer || !rightGridContainer) return;
 
         // Store original column counts if not already stored
@@ -214,6 +211,10 @@ export class HotbarContainer extends BG3Component {
         // Calculate the total columns between these two grids (conserved)
         const totalCols = leftGridContainer._originalCols + rightGridContainer._originalCols;
 
+        // Calculate cols-per-pixel from the actual rendered grid element.
+        const cellWidth = this._getRenderedCellWidth(leftGridContainer);
+        const deltaColsRounded = Math.round(deltaX / cellWidth);
+
         // Calculate new column counts, clamped to [0, totalCols]
         let newLeftCols = leftGridContainer._originalCols + deltaColsRounded;
         let newRightCols = rightGridContainer._originalCols - deltaColsRounded;
@@ -222,20 +223,13 @@ export class HotbarContainer extends BG3Component {
         newLeftCols = Math.max(0, Math.min(totalCols, newLeftCols));
         newRightCols = totalCols - newLeftCols;
 
-        // Only update if columns actually changed
-        if (leftGridContainer.cols !== newLeftCols || rightGridContainer.cols !== newRightCols) {
-            // Update the GridContainer instances' properties
-            leftGridContainer.cols = newLeftCols;
-            rightGridContainer.cols = newRightCols;
-
-            // Hide/show containers based on column count
-            leftGridContainer.element.style.display = newLeftCols === 0 ? 'none' : '';
-            rightGridContainer.element.style.display = newRightCols === 0 ? 'none' : '';
-
-            // Re-render the grids in place (this restructures them)
-            await leftGridContainer.render();
-            await rightGridContainer.render();
-        }
+        // Fast preview only during drag (do not rebuild cells on every pointer move).
+        this._queueDragPreview({
+            leftGridContainer,
+            rightGridContainer,
+            newLeftCols,
+            newRightCols
+        });
     }
 
     /**
@@ -245,35 +239,121 @@ export class HotbarContainer extends BG3Component {
      * @private
      */
     async _onDragBarEnd(bar, deltaX) {
+        this._flushPendingDragPreview();
+
         // Get the two grid containers
         const leftGridContainer = this.gridContainers[bar.index];
         const rightGridContainer = this.gridContainers[bar.index + 1];
         const leftGrid = this.grids[bar.index];
         const rightGrid = this.grids[bar.index + 1];
 
-        // Clean up stored original values
+        const startLeftCols = leftGridContainer?._originalCols ?? leftGridContainer?.cols ?? 0;
+        const startRightCols = rightGridContainer?._originalCols ?? rightGridContainer?.cols ?? 0;
+
+        // Derive final column values from the final drag delta to avoid relying on preview state.
+        const totalCols = startLeftCols + startRightCols;
+        const cellWidth = this._getRenderedCellWidth(leftGridContainer);
+        const deltaColsRounded = Math.round(deltaX / cellWidth);
+        const baseLeftCols = startLeftCols;
+        let finalLeftCols = Math.max(0, Math.min(totalCols, baseLeftCols + deltaColsRounded));
+        let finalRightCols = totalCols - finalLeftCols;
+
+        // Apply final values and do one structural render.
+        if (leftGridContainer && rightGridContainer) {
+            leftGridContainer.cols = finalLeftCols;
+            rightGridContainer.cols = finalRightCols;
+            leftGridContainer.element.style.display = finalLeftCols === 0 ? 'none' : '';
+            rightGridContainer.element.style.display = finalRightCols === 0 ? 'none' : '';
+            await Promise.all([leftGridContainer.render(), rightGridContainer.render()]);
+        }
+
+        // Update grid data to match final state and save once.
+        if (leftGrid && rightGrid) {
+            leftGrid.cols = finalLeftCols;
+            rightGrid.cols = finalRightCols;
+
+            // Save to persistence - update each grid's config
+            if (this.options.hotbarApp?.persistenceManager) {
+                await this.options.hotbarApp.persistenceManager.updateGridConfig(bar.index, {
+                    cols: finalLeftCols
+                });
+                await this.options.hotbarApp.persistenceManager.updateGridConfig(bar.index + 1, {
+                    cols: finalRightCols
+                });
+            }
+        }
+
+        if (leftGridContainer) {
+            delete leftGridContainer._previewCols;
+        }
+        if (rightGridContainer) {
+            delete rightGridContainer._previewCols;
+        }
         if (leftGridContainer) {
             delete leftGridContainer._originalCols;
         }
         if (rightGridContainer) {
             delete rightGridContainer._originalCols;
         }
+    }
 
-        // Update grid data to match current state (already updated during drag)
-        if (leftGrid && rightGrid) {
-            leftGrid.cols = leftGridContainer.cols;
-            rightGrid.cols = rightGridContainer.cols;
-
-            // Save to persistence - update each grid's config
-            if (this.options.hotbarApp?.persistenceManager) {
-                await this.options.hotbarApp.persistenceManager.updateGridConfig(bar.index, {
-                    cols: leftGridContainer.cols
-                });
-                await this.options.hotbarApp.persistenceManager.updateGridConfig(bar.index + 1, {
-                    cols: rightGridContainer.cols
-                });
-            }
+    _getRenderedCellWidth(gridContainer) {
+        const cellElement = gridContainer?.element?.querySelector('.bg3-grid-cell');
+        if (cellElement) {
+            const rect = cellElement.getBoundingClientRect();
+            const styles = getComputedStyle(gridContainer.element);
+            const gap = parseFloat(styles.columnGap || styles.gap || '0') || 0;
+            return Math.max(1, rect.width + gap);
         }
+
+        const rootStyles = getComputedStyle(document.documentElement);
+        const cellSize = parseFloat(rootStyles.getPropertyValue('--bg3-hotbar-cell-size')) || 50;
+        const gridGap = parseFloat(rootStyles.getPropertyValue('--bg3-grid-gap')) || 2;
+        return Math.max(1, cellSize + gridGap);
+    }
+
+    _queueDragPreview(previewState) {
+        this._pendingDragPreview = previewState;
+        if (this._dragPreviewFrame) return;
+        this._dragPreviewFrame = requestAnimationFrame(() => {
+            this._dragPreviewFrame = null;
+            this._flushPendingDragPreview();
+        });
+    }
+
+    _flushPendingDragPreview() {
+        if (!this._pendingDragPreview) return;
+        const { leftGridContainer, rightGridContainer, newLeftCols, newRightCols } = this._pendingDragPreview;
+        this._pendingDragPreview = null;
+
+        if (leftGridContainer._previewCols === newLeftCols && rightGridContainer._previewCols === newRightCols) {
+            return;
+        }
+
+        leftGridContainer._previewCols = newLeftCols;
+        rightGridContainer._previewCols = newRightCols;
+        leftGridContainer.cols = newLeftCols;
+        rightGridContainer.cols = newRightCols;
+        leftGridContainer.element.style.display = newLeftCols === 0 ? 'none' : '';
+        rightGridContainer.element.style.display = newRightCols === 0 ? 'none' : '';
+
+        // Keep live slot shape accurate while dragging, but coalesce renders.
+        if (this._dragRenderInFlight) {
+            this._dragRenderQueued = true;
+            return;
+        }
+
+        this._dragRenderInFlight = true;
+        Promise.all([
+            leftGridContainer.render(),
+            rightGridContainer.render()
+        ]).finally(() => {
+            this._dragRenderInFlight = false;
+            if (this._pendingDragPreview || this._dragRenderQueued) {
+                this._dragRenderQueued = false;
+                this._flushPendingDragPreview();
+            }
+        });
     }
 
     /**
@@ -301,6 +381,14 @@ export class HotbarContainer extends BG3Component {
      * Destroy the container and all children
      */
     destroy() {
+        if (this._dragPreviewFrame) {
+            cancelAnimationFrame(this._dragPreviewFrame);
+            this._dragPreviewFrame = null;
+        }
+        this._pendingDragPreview = null;
+        this._dragRenderInFlight = false;
+        this._dragRenderQueued = false;
+
         // Destroy active effects container
         if (this.activeEffectsContainer) {
             this.activeEffectsContainer.destroy();

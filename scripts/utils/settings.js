@@ -891,11 +891,17 @@ export function applyMacrobarCollapseSetting(hudVisible) {
 
     const collapseMacrobar = game.settings.get('bg3-hud-core', 'collapseMacrobar');
     const hotbarElement = ui.hotbar.element;
-    const hotbarDiv = document.querySelector("#hotbar");
+    const hotbarDiv = document.querySelector('#hotbar');
 
-    // Reset display if not 'full'
-    if (collapseMacrobar !== 'full' && hotbarDiv?.style.display !== 'flex') {
-        hotbarDiv.style.display = 'flex';
+    // Determine if HUD is currently visible; default false when app not ready.
+    // This prevents "whenHudVisible" from hiding the macro bar too early on load.
+    const effectiveHudVisible = hudVisible !== undefined
+        ? hudVisible
+        : Boolean(ui.BG3HUD_APP?.isVisible);
+
+    // Ensure full-hide mode is the only mode that controls display:none.
+    if (hotbarDiv && collapseMacrobar !== 'full' && hotbarDiv.style.display === 'none') {
+        hotbarDiv.style.display = '';
     }
 
     // Determine if we should hide based on setting
@@ -905,10 +911,7 @@ export function applyMacrobarCollapseSetting(hudVisible) {
     } else if (collapseMacrobar === 'never') {
         shouldHide = false;
     } else if (collapseMacrobar === 'whenHudVisible') {
-        // Use provided visibility or check current state
-        shouldHide = hudVisible !== undefined
-            ? hudVisible
-            : (ui.BG3HUD_APP?.isVisible ?? true);
+        shouldHide = effectiveHudVisible;
     } else if (collapseMacrobar === 'full') {
         if (hotbarDiv && hotbarDiv.style.display !== 'none') {
             hotbarDiv.style.display = 'none';
@@ -918,17 +921,19 @@ export function applyMacrobarCollapseSetting(hudVisible) {
 
     // Apply visibility
     if (shouldHide) {
-        // Foundry V13+ uses classes, older uses collapse/expand methods
-        if (hotbarElement?.classList) {
-            hotbarElement.classList.add('hidden');
-        } else if (ui.hotbar.collapse) {
+        // Prefer Foundry API first, then enforce class state as backup.
+        if (typeof ui.hotbar.collapse === 'function') {
             ui.hotbar.collapse();
         }
-    } else {
         if (hotbarElement?.classList) {
-            hotbarElement.classList.remove('hidden');
-        } else if (ui.hotbar.expand) {
+            hotbarElement.classList.add('hidden', 'collapsed');
+        }
+    } else {
+        if (typeof ui.hotbar.expand === 'function') {
             ui.hotbar.expand();
+        }
+        if (hotbarElement?.classList) {
+            hotbarElement.classList.remove('hidden', 'collapsed');
         }
     }
 }

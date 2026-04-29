@@ -200,6 +200,10 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
         // Initialize components after DOM is ready
         await this._initializeComponents();
 
+        // Always re-sync Foundry macro bar after component init.
+        // This covers token select/deselect refreshes where UI visibility context changes.
+        applyMacrobarCollapseSetting(this.isVisible);
+
         // Apply appearance settings (opacity, scale, position) after components are built
         applyAppearanceSettings();
 

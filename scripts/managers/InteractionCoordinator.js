@@ -248,6 +248,7 @@ export class InteractionCoordinator {
     async removeCell(cell) {
         // STEP 1: Update visual state
         await cell.setData(null, { skipSave: true });
+        this._updateRuntimeGridItem(cell, null);
 
         // Update two-handed weapon display immediately (parallel with visual update)
         if (ContainerTypeDetector.isWeaponSet(cell)) {
@@ -406,6 +407,8 @@ export class InteractionCoordinator {
                 sourceCell.setData(targetData, { skipSave: true }),
                 targetCell.setData(sourceData, { skipSave: true })
             ]);
+            this._updateRuntimeGridItem(sourceCell, targetData);
+            this._updateRuntimeGridItem(targetCell, sourceData);
 
             // STEP 3: Update two-handed weapon display BEFORE persisting (for immediate visual feedback)
             if (ContainerTypeDetector.isWeaponSet(sourceCell)) {
@@ -420,21 +423,22 @@ export class InteractionCoordinator {
 
             // STEP 4: Persist both changes
             if (this.persistenceManager) {
-                await this.persistenceManager.updateCell({
-                    container: sourceCell.containerType,
-                    containerIndex: sourceCell.containerIndex,
-                    slotKey: sourceSlotKey,
-                    data: targetData,
-                    parentCell: sourceCell.parentCell // For containerPopover
-                });
-
-                await this.persistenceManager.updateCell({
-                    container: targetCell.containerType,
-                    containerIndex: targetCell.containerIndex,
-                    slotKey: targetSlotKey,
-                    data: sourceData,
-                    parentCell: targetCell.parentCell // For containerPopover
-                });
+                await this.persistenceManager.updateCells([
+                    {
+                        container: sourceCell.containerType,
+                        containerIndex: sourceCell.containerIndex,
+                        slotKey: sourceSlotKey,
+                        data: targetData,
+                        parentCell: sourceCell.parentCell // For containerPopover
+                    },
+                    {
+                        container: targetCell.containerType,
+                        containerIndex: targetCell.containerIndex,
+                        slotKey: targetSlotKey,
+                        data: sourceData,
+                        parentCell: targetCell.parentCell // For containerPopover
+                    }
+                ]);
             }
         } else {
             // CROSS-CONTAINER: Move item (clear source)
@@ -444,6 +448,8 @@ export class InteractionCoordinator {
                 sourceCell.setData(null, { skipSave: true }),
                 targetCell.setData(sourceData, { skipSave: true })
             ]);
+            this._updateRuntimeGridItem(sourceCell, null);
+            this._updateRuntimeGridItem(targetCell, sourceData);
 
             // STEP 3: Update two-handed weapon display BEFORE persisting (for immediate visual feedback)
             const weaponContainer = this.hotbarApp.components.weaponSets;
@@ -462,21 +468,22 @@ export class InteractionCoordinator {
 
             // STEP 4: Persist both changes (clear source, set target)
             if (this.persistenceManager) {
-                await this.persistenceManager.updateCell({
-                    container: sourceCell.containerType,
-                    containerIndex: sourceCell.containerIndex,
-                    slotKey: sourceSlotKey,
-                    data: null,
-                    parentCell: sourceCell.parentCell // For containerPopover
-                });
-
-                await this.persistenceManager.updateCell({
-                    container: targetCell.containerType,
-                    containerIndex: targetCell.containerIndex,
-                    slotKey: targetSlotKey,
-                    data: sourceData,
-                    parentCell: targetCell.parentCell // For containerPopover
-                });
+                await this.persistenceManager.updateCells([
+                    {
+                        container: sourceCell.containerType,
+                        containerIndex: sourceCell.containerIndex,
+                        slotKey: sourceSlotKey,
+                        data: null,
+                        parentCell: sourceCell.parentCell // For containerPopover
+                    },
+                    {
+                        container: targetCell.containerType,
+                        containerIndex: targetCell.containerIndex,
+                        slotKey: targetSlotKey,
+                        data: sourceData,
+                        parentCell: targetCell.parentCell // For containerPopover
+                    }
+                ]);
             }
         }
     }
@@ -585,6 +592,7 @@ export class InteractionCoordinator {
 
         // STEP 6: Update visual state and two-handed weapon display simultaneously
         await targetCell.setData(cellData, { skipSave: true });
+        this._updateRuntimeGridItem(targetCell, cellData);
 
         // Update two-handed weapon display immediately (parallel with visual update)
         if (ContainerTypeDetector.isWeaponSet(targetCell)) {
@@ -696,6 +704,38 @@ export class InteractionCoordinator {
 
         console.debug('[bg3-hud-core] Executing macro:', macro.name);
         await macro.execute({ actor, token });
+    }
+
+    /**
+     * Keep runtime grid item maps in sync with direct cell mutations.
+     * Prevents stale item data from reappearing on container re-renders
+     * (for example while resizing with drag bars) before persistence settles.
+     * @param {GridCell} cell
+     * @param {Object|null} data
+     * @private
+     */
+    _updateRuntimeGridItem(cell, data) {
+        if (!cell) return;
+
+        const containerMap = {
+            hotbar: this.hotbarApp?.components?.hotbar?.gridContainers,
+            weaponSet: this.hotbarApp?.components?.weaponSets?.gridContainers,
+            quickAccess: this.hotbarApp?.components?.quickAccess?.gridContainers
+        };
+
+        const grid = containerMap[cell.containerType]?.[cell.containerIndex];
+        if (!grid) return;
+
+        const slotKey = cell.getSlotKey();
+        if (!grid.items || typeof grid.items !== 'object') {
+            grid.items = {};
+        }
+
+        if (data === null || data === undefined) {
+            delete grid.items[slotKey];
+        } else {
+            grid.items[slotKey] = data;
+        }
     }
 
 }

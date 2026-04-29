@@ -36,6 +36,7 @@ export class WeaponSetContainer extends BG3Component {
         this.onCellDrop = options.onCellDrop;
         
         this.gridContainers = [];
+        this._setClickListeners = new Map();
     }
 
     /**
@@ -127,36 +128,44 @@ export class WeaponSetContainer extends BG3Component {
             this.element = this.createElement('div', ['bg3-weapon-container']);
         }
 
-        // Clear existing
-        this.element.innerHTML = '';
-        this.gridContainers = [];
+        // Rebuild only if weapon set count changed.
+        const needsRebuild = this.gridContainers.length !== this.weaponSets.length;
+        if (needsRebuild) {
+            this.element.innerHTML = '';
+            this.gridContainers = [];
+            this._setClickListeners.clear();
+        }
 
-        // Create weapon set grid containers
         for (let i = 0; i < this.weaponSets.length; i++) {
             const setData = this.weaponSets[i];
-            const gridContainer = new GridContainer({
-                rows: setData.rows,
-                cols: setData.cols,
-                items: setData.items || {},
-                id: 'weapon',
-                index: i,
-                containerType: 'weaponSet',
-                containerIndex: i,
-                persistenceManager: this.persistenceManager,
-                actor: this.actor,
-                token: this.token,
-                onCellClick: this.onCellClick,
-                onCellRightClick: this.onCellRightClick,
-                onCellDragStart: this.onCellDragStart,
-                onCellDragEnd: this.onCellDragEnd,
-                onCellDrop: this.onCellDrop,
-                decorateCellElement: this.options?.hotbarApp?.adapter?.decorateCellElement || this.options?.decorateCellElement
-            });
-            
-            // Render first to create the element
+            let gridContainer = this.gridContainers[i];
+            if (!gridContainer) {
+                gridContainer = new GridContainer({
+                    rows: setData.rows,
+                    cols: setData.cols,
+                    items: setData.items || {},
+                    id: 'weapon',
+                    index: i,
+                    containerType: 'weaponSet',
+                    containerIndex: i,
+                    persistenceManager: this.persistenceManager,
+                    actor: this.actor,
+                    token: this.token,
+                    onCellClick: this.onCellClick,
+                    onCellRightClick: this.onCellRightClick,
+                    onCellDragStart: this.onCellDragStart,
+                    onCellDragEnd: this.onCellDragEnd,
+                    onCellDrop: this.onCellDrop,
+                    decorateCellElement: this.options?.hotbarApp?.adapter?.decorateCellElement || this.options?.decorateCellElement
+                });
+                this.gridContainers[i] = gridContainer;
+            } else {
+                gridContainer.rows = setData.rows;
+                gridContainer.cols = setData.cols;
+                gridContainer.items = setData.items || {};
+            }
+
             await gridContainer.render();
-            
-            // Now we can modify the element
             gridContainer.element.classList.add('bg3-weapon-set');
             gridContainer.element.dataset.containerIndex = i;
             gridContainer.element.dataset.setId = i;
@@ -164,20 +173,21 @@ export class WeaponSetContainer extends BG3Component {
             gridContainer.element.dataset.bg3Ui = 'true';
             
             // Add click handler to switch sets
-            this.addEventListener(gridContainer.element, 'click', async (event) => {
-                const activeIndex = this.getActiveSet();
-                
-                // If this is the active set, allow normal cell clicks
-                if (i === activeIndex) return;
-                
-                // If this is an inactive set, clicking anywhere switches to it
-                event.preventDefault();
-                event.stopPropagation();
-                await this._handleSetClick(i, gridContainer);
-            });
-            
-            this.gridContainers.push(gridContainer);
-            this.element.appendChild(gridContainer.element);
+            if (!this._setClickListeners.has(i)) {
+                const listener = async (event) => {
+                    const activeIndex = this.getActiveSet();
+                    if (i === activeIndex) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    await this._handleSetClick(i, gridContainer);
+                };
+                this.addEventListener(gridContainer.element, 'click', listener);
+                this._setClickListeners.set(i, listener);
+            }
+
+            if (gridContainer.element.parentElement !== this.element) {
+                this.element.appendChild(gridContainer.element);
+            }
         }
 
         // Set initial active set

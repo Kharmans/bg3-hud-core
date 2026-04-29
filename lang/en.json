@@ -286,7 +286,8 @@
       "SaveLayoutSuccess": "Saved layout as actor default for future tokens.",
       "SaveLayoutFailed": "Failed to save layout as actor default.",
       "GMHotbarNotEnabled": "GM Hotbar is not enabled in module settings.",
-      "SelectTokenToSwitch": "Select a token to switch to Token Hotbar"
+      "SelectTokenToSwitch": "Select a token to switch to Token Hotbar",
+      "MinRowsReached": "Cannot remove a row: the hotbar is already at its minimum height."
     },
     "Views": {
       "CreateTitle": "Create New View",

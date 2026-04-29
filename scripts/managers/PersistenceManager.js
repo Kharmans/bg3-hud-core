@@ -19,6 +19,11 @@ export class PersistenceManager {
         this.state = null; // Cached state
         this._saveInProgress = false; // Prevent concurrent saves
         this._lastSaveTimestamp = 0; // Track when we last saved locally
+        this._queuedSaveTimer = null;
+        this._queuedSavePromise = null;
+        this._queuedSaveResolve = null;
+        this._queuedSaveReject = null;
+        this.SAVE_DEBOUNCE_MS = 100;
 
         // Default grid configuration - can be overridden by system adapters
         this.DEFAULT_GRID_CONFIG = {
@@ -269,6 +274,45 @@ export class PersistenceManager {
     }
 
     /**
+     * Queue a state save so rapid HUD edits collapse into one Foundry document update.
+     * @param {Object} state - Complete HUD state
+     * @returns {Promise<void>}
+     */
+    async queueSaveState(state) {
+        this.state = foundry.utils.deepClone(state);
+        this._lastSaveTimestamp = Date.now();
+
+        if (!this._queuedSavePromise) {
+            this._queuedSavePromise = new Promise((resolve, reject) => {
+                this._queuedSaveResolve = resolve;
+                this._queuedSaveReject = reject;
+            });
+        }
+
+        if (this._queuedSaveTimer) {
+            clearTimeout(this._queuedSaveTimer);
+        }
+
+        this._queuedSaveTimer = setTimeout(async () => {
+            const resolve = this._queuedSaveResolve;
+            const reject = this._queuedSaveReject;
+            this._queuedSaveTimer = null;
+            this._queuedSavePromise = null;
+            this._queuedSaveResolve = null;
+            this._queuedSaveReject = null;
+
+            try {
+                await this.saveState(this.state);
+                resolve?.();
+            } catch (error) {
+                reject?.(error);
+            }
+        }, this.SAVE_DEBOUNCE_MS);
+
+        return this._queuedSavePromise;
+    }
+
+    /**
      * Update a single cell atomically
      * Load → Modify → Save pattern prevents race conditions
      * @param {Object} options - Update options
@@ -279,16 +323,34 @@ export class PersistenceManager {
      * @returns {Promise<void>}
      */
     async updateCell(options) {
-        const { container, slotKey, data, parentCell } = options;
-        const containerIndex = options.containerIndex ?? 0;
+        await this.updateCells([options]);
+    }
 
-        // Use cached state if available, otherwise load fresh
+    /**
+     * Update multiple cells with one cached state mutation and one queued save.
+     * @param {Array<Object>} updates - Cell updates in updateCell option format
+     * @returns {Promise<void>}
+     */
+    async updateCells(updates) {
+        if (!Array.isArray(updates) || updates.length === 0) return;
+
         let state = this.state;
         if (!state) {
             state = await this.loadState();
         }
 
-        // Navigate to the correct items object and assign directly
+        for (const update of updates) {
+            this._applyCellUpdate(state, update);
+        }
+
+        this._syncCurrentStateToActiveView(state);
+        await this.queueSaveState(state);
+    }
+
+    _applyCellUpdate(state, options) {
+        const { container, slotKey, data, parentCell } = options;
+        const containerIndex = options.containerIndex ?? 0;
+
         switch (container) {
             case 'hotbar': {
                 const grid = state.hotbar?.grids?.[containerIndex];
@@ -297,7 +359,7 @@ export class PersistenceManager {
                     return;
                 }
                 grid.items[slotKey] = data;
-                break;
+                return;
             }
             case 'quickAccess': {
                 if (!state.quickAccess || !Array.isArray(state.quickAccess.grids)) {
@@ -309,7 +371,7 @@ export class PersistenceManager {
                     qGrid.items = {};
                 }
                 qGrid.items[slotKey] = data;
-                break;
+                return;
             }
             case 'weaponSet': {
                 const set = state.weaponSets?.sets?.[containerIndex];
@@ -318,16 +380,14 @@ export class PersistenceManager {
                     return;
                 }
                 set.items[slotKey] = data;
-                break;
+                return;
             }
             case 'containerPopover': {
-                // Container popovers save nested within their parent cell's data
                 if (!parentCell) {
                     console.error('[bg3-hud-core] PersistenceManager: No parent cell provided for containerPopover');
                     return;
                 }
 
-                // Get the parent container's state
                 let parentGrid;
                 switch (parentCell.containerType) {
                     case 'hotbar':
@@ -357,7 +417,6 @@ export class PersistenceManager {
 
                 const parentSlotKey = parentCell.getSlotKey();
                 const parentCellData = parentGrid.items[parentSlotKey];
-
                 if (!parentCellData) {
                     console.error('[bg3-hud-core] PersistenceManager: Parent cell has no data', {
                         parentSlotKey,
@@ -366,43 +425,22 @@ export class PersistenceManager {
                     return;
                 }
 
-                // Initialize containerGrid if it doesn't exist
                 if (!parentCellData.containerGrid) {
-                    parentCellData.containerGrid = {
-                        rows: 3,
-                        cols: 5,
-                        items: {}
-                    };
+                    parentCellData.containerGrid = { rows: 3, cols: 5, items: {} };
                 }
-
-                // Update the nested item
                 parentCellData.containerGrid.items[slotKey] = data;
 
-                // CRITICAL: Update the parent cell's in-memory data so it reflects the changes
-                // This ensures the popover reads the correct data when reopened
                 if (parentCell.data) {
                     if (!parentCell.data.containerGrid) {
-                        parentCell.data.containerGrid = {
-                            rows: 3,
-                            cols: 5,
-                            items: {}
-                        };
+                        parentCell.data.containerGrid = { rows: 3, cols: 5, items: {} };
                     }
                     parentCell.data.containerGrid.items[slotKey] = data;
                 }
-
-                break;
+                return;
             }
             default:
                 console.warn('[bg3-hud-core] PersistenceManager: Unknown container type:', container);
-                return;
         }
-
-        // Sync changes to active view's hotbar state
-        this._syncCurrentStateToActiveView(state);
-
-        // Save the entire state (Foundry broadcasts to all clients via updateActor hook)
-        await this.saveState(state);
     }
 
     /**
@@ -427,7 +465,10 @@ export class PersistenceManager {
      * @returns {Promise<void>}
      */
     async updateGridConfig(gridIndex, config) {
-        const state = await this.loadState();
+        let state = this.state;
+        if (!state) {
+            state = await this.loadState();
+        }
 
         if (!state.hotbar.grids[gridIndex]) {
             console.error('[bg3-hud-core] PersistenceManager: Invalid grid index:', gridIndex);
@@ -444,7 +485,7 @@ export class PersistenceManager {
         // Sync to active view
         this._syncCurrentStateToActiveView(state);
 
-        await this.saveState(state);
+        await this.queueSaveState(state);
     }
 
     /**
@@ -454,7 +495,10 @@ export class PersistenceManager {
      * @returns {Promise<void>}
      */
     async updateAllGridsRows(rowChange) {
-        const state = await this.loadState();
+        let state = this.state;
+        if (!state) {
+            state = await this.loadState();
+        }
         const grids = state.hotbar.grids;
 
         // Validation: Check if any grid would go below 1 row
@@ -472,7 +516,42 @@ export class PersistenceManager {
         this._syncCurrentStateToActiveView(state);
 
         // Single save for all grids
-        await this.saveState(state);
+        await this.queueSaveState(state);
+    }
+
+    /**
+     * Copy hotbar grid rows/cols/items from runtime UI models into state and queue one debounced save.
+     * Row +/- uses this instead of updateAllGridsRows so rows are not applied twice and items stay in sync with the live grids.
+     * @param {Array<{rows:number, cols:number, items?:Object}>} runtimeGrids - Same shape as hotbarContainer.grids
+     * @returns {Promise<void>}
+     */
+    async persistHotbarGridsFromRuntime(runtimeGrids) {
+        if (!Array.isArray(runtimeGrids) || runtimeGrids.length === 0) {
+            console.warn('[bg3-hud-core] persistHotbarGridsFromRuntime: invalid runtime grids');
+            return;
+        }
+
+        let state = this.state;
+        if (!state) {
+            state = await this.loadState();
+        }
+
+        if (!state.hotbar?.grids?.length) {
+            console.warn('[bg3-hud-core] persistHotbarGridsFromRuntime: state has no hotbar grids');
+            return;
+        }
+
+        const n = Math.min(state.hotbar.grids.length, runtimeGrids.length);
+        for (let i = 0; i < n; i++) {
+            const rt = runtimeGrids[i];
+            const dest = state.hotbar.grids[i];
+            dest.rows = rt.rows;
+            dest.cols = rt.cols;
+            dest.items = foundry.utils.deepClone(rt.items || {});
+        }
+
+        this._syncCurrentStateToActiveView(state);
+        await this.queueSaveState(state);
     }
 
     /**

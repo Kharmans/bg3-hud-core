@@ -474,33 +474,8 @@ export class UpdateCoordinator {
      * @private
      */
     async _handleItemsChange(changedItems) {
-        // For now, update all grid containers
-        // TODO: Make this more granular by only updating cells with changed items
-        const updated = [];
-
-        if (this.hotbarApp.components?.hotbar) {
-            for (const gridContainer of this.hotbarApp.components.hotbar.gridContainers) {
-                updated.push(gridContainer.render());
-            }
-        }
-
-        if (this.hotbarApp.components?.weaponSets) {
-            for (const gridContainer of this.hotbarApp.components.weaponSets.gridContainers) {
-                updated.push(gridContainer.render());
-            }
-        }
-
-        if (this.hotbarApp.components?.quickAccess) {
-            for (const gridContainer of this.hotbarApp.components.quickAccess.gridContainers) {
-                updated.push(gridContainer.render());
-            }
-        }
-
-        if (updated.length > 0) {
-            await Promise.all(updated);
-            return true;
-        }
-
+        // Embedded item hooks handle most item updates with UUID-targeted refresh.
+        // Actor-level `changes.items` is often noisy and incomplete, so avoid broad fan-out here.
         return false;
     }
 
@@ -598,55 +573,67 @@ export class UpdateCoordinator {
             return;
         }
 
-        // Hydrate latest state and update all containers with fresh data
+        // Refresh only cells showing this UUID.
         try {
-            let state = await this.persistenceManager.loadState();
-            state = await this.persistenceManager.hydrateState(state);
-
-            // Update hotbar grids with hydrated data
-            if (this.hotbarApp.components?.hotbar) {
-                const hotbar = this.hotbarApp.components.hotbar;
-                for (let i = 0; i < state.hotbar.grids.length; i++) {
-                    const gridData = state.hotbar.grids[i];
-                    const gridContainer = hotbar.gridContainers[i];
-                    if (gridContainer) {
-                        gridContainer.items = gridData.items;
-                        await gridContainer.render();
-                    }
-                }
-            }
-
-            // Update weapon sets with hydrated data
-            if (this.hotbarApp.components?.weaponSets) {
-                const weaponSets = this.hotbarApp.components.weaponSets;
-                for (let i = 0; i < state.weaponSets.sets.length; i++) {
-                    const setData = state.weaponSets.sets[i];
-                    const gridContainer = weaponSets.gridContainers[i];
-                    if (gridContainer) {
-                        gridContainer.items = setData.items;
-                        await gridContainer.render();
-                    }
-                }
-            }
-
-            // Update quick access with hydrated data
-            if (this.hotbarApp.components?.quickAccess && state.quickAccess?.grids?.[0]) {
-                const quickAccess = this.hotbarApp.components.quickAccess;
-                const gridData = state.quickAccess.grids[0];
-                const gridContainer = quickAccess.gridContainers[0];
-                if (gridContainer) {
-                    gridContainer.items = gridData.items;
-                    await gridContainer.render();
-                }
-            }
+            const adapter = BG3HUD_REGISTRY.activeAdapter;
+            const transformedData = adapter?.transformItemToCellData
+                ? await adapter.transformItemToCellData(item)
+                : { uuid: item.uuid, name: item.name, img: item.img };
+            const changed = await this._refreshCellsByUuid(item.uuid, transformedData);
 
             // AFTER all renders complete, update depletion states
             // This ensures visual depletion is applied after cells have fresh data
-            this._updateDepletionStatesDeferred(item.parent, changes);
+            if (changed) {
+                this._updateDepletionStatesDeferred(item.parent, changes);
+            }
         } catch (e) {
             console.error('[bg3-hud-core] UpdateCoordinator: Failed to handle embedded item change', e);
             await this.hotbarApp.refresh();
         }
+    }
+
+    async _refreshCellsByUuid(uuid, freshData) {
+        if (!uuid) return false;
+        const updates = [];
+        let anyChanged = false;
+        for (const cell of this._iterAllCells()) {
+            if (!cell?.data?.uuid || cell.data.uuid !== uuid) continue;
+            anyChanged = true;
+            const mergedData = { ...cell.data, ...freshData };
+            updates.push(cell.setData(mergedData, { skipSave: true }));
+            const grid = this._findGridForCell(cell);
+            if (grid) {
+                grid.items[cell.getSlotKey()] = mergedData;
+            }
+        }
+        if (updates.length) {
+            await Promise.all(updates);
+        }
+        return anyChanged;
+    }
+
+    *_iterAllCells() {
+        const hotbarGrids = this.hotbarApp.components?.hotbar?.gridContainers || [];
+        for (const grid of hotbarGrids) {
+            for (const cell of grid?.cells || []) yield cell;
+        }
+        const weaponGrids = this.hotbarApp.components?.weaponSets?.gridContainers || [];
+        for (const grid of weaponGrids) {
+            for (const cell of grid?.cells || []) yield cell;
+        }
+        const quickGrids = this.hotbarApp.components?.quickAccess?.gridContainers || [];
+        for (const grid of quickGrids) {
+            for (const cell of grid?.cells || []) yield cell;
+        }
+    }
+
+    _findGridForCell(cell) {
+        const containerMap = {
+            hotbar: this.hotbarApp.components?.hotbar?.gridContainers,
+            weaponSet: this.hotbarApp.components?.weaponSets?.gridContainers,
+            quickAccess: this.hotbarApp.components?.quickAccess?.gridContainers
+        };
+        return containerMap[cell.containerType]?.[cell.containerIndex] || null;
     }
 
     /**
