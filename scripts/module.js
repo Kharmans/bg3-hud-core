@@ -61,24 +61,45 @@ Hooks.once('ready', async () => {
         });
     }
 
+    // Ensure canvas.tokens exists (ready can run before the canvas is initialised)
+    if (typeof canvas !== 'undefined' && canvas && !canvas.ready) {
+        await new Promise(resolve => {
+            Hooks.once('canvasReady', resolve);
+        });
+    }
+
+    /**
+     * Single compatible controlled token for HUD context (matches UpdateCoordinator rules).
+     * @returns {Token|null}
+     */
+    const pickSingleHudToken = () => {
+        const list = canvas.tokens?.controlled ?? [];
+        if (list.length !== 1) return null;
+        const t = list[0];
+        const adapter = BG3HUD_REGISTRY.activeAdapter;
+        const ok = adapter && typeof adapter.isCompatible === 'function'
+            ? adapter.isCompatible(t.actor)
+            : t.actor?.type !== 'group';
+        return ok ? t : null;
+    };
+
     // Create and render the HUD
     console.info('[bg3-hud-core] Creating HUD application');
     ui.BG3HUD_APP = new BG3Hotbar();
-    ui.BG3HUD_APP.render(true);
+    // `ready` already applied theme — skip duplicate work in first _onRender
+    ui.BG3HUD_APP._themeApplied = true;
 
-    // Check for pre-selected tokens immediately (like original module did)
-    // This runs after the HUD is created but the canvas is already ready
-    const token = canvas.tokens?.controlled?.[0];
-    if (token) {
-        console.debug('[bg3-hud-core] Found pre-selected token on load:', token.name);
-        ui.BG3HUD_APP.currentToken = token;
-        ui.BG3HUD_APP.currentActor = token.actor;
-        // Slight delay to ensure HUD is fully rendered before refresh
-        setTimeout(() => ui.BG3HUD_APP.refresh(), 100);
+    const initialToken = pickSingleHudToken();
+    if (initialToken) {
+        console.debug('[bg3-hud-core] Pre-binding controlled token for first HUD render:', initialToken.name);
+        ui.BG3HUD_APP.currentToken = initialToken;
+        ui.BG3HUD_APP.currentActor = initialToken.actor;
     }
 
+    await ui.BG3HUD_APP.render(true);
+
     // Apply macrobar collapse setting
-    applyMacrobarCollapseSetting();
+    applyMacrobarCollapseSetting(ui.BG3HUD_APP.isVisible);
 
     // Apply container row settings
     applyContainerRowSettings();

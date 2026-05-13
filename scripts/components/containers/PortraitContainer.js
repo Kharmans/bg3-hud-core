@@ -77,6 +77,68 @@ export class PortraitContainer extends BG3Component {
     }
 
     /**
+     * Swap portrait + info to a new controlled token without rebuilding the container shell.
+     * @param {Actor} actor
+     * @param {Token} token
+     * @returns {Promise<HTMLElement>}
+     */
+    async swapTokenContext(actor, token) {
+        this.actor = actor;
+        this.token = token;
+
+        if (this.infoContainer) {
+            this.infoContainer.actor = actor;
+            this.infoContainer.token = token;
+            if (typeof this.infoContainer.update === 'function') {
+                await this.infoContainer.update();
+            }
+        }
+
+        const sub = this.element?.querySelector('.portrait-image-subcontainer');
+        if (sub && token) {
+            const src = await this.getPortraitImage();
+            const videoExtensions = ['webm', 'mp4', 'ogg', 'ogv'];
+            const extension = src?.split('.').pop()?.toLowerCase() || '';
+            const isVideo = videoExtensions.includes(extension);
+
+            const existing = sub.querySelector('.portrait-image, .portrait-video');
+            const existingIsVideo = existing?.tagName === 'VIDEO';
+
+            if (existing && isVideo === existingIsVideo) {
+                if (isVideo) {
+                    existing.src = src || '';
+                    try {
+                        existing.load?.();
+                    } catch {
+                        /* ignore */
+                    }
+                } else {
+                    existing.src = src || '';
+                }
+                existing.alt = this.actor?.name || 'Portrait';
+            } else {
+                if (existing) existing.remove();
+                sub.appendChild(this._createMediaElement(src, this.actor?.name || 'Portrait'));
+            }
+        }
+
+        const imageContainer = this.element?.querySelector('.portrait-image-container');
+        if (imageContainer) {
+            const subContainer = imageContainer.querySelector('.portrait-image-subcontainer');
+            if (subContainer) {
+                this._applyPortraitScale(subContainer);
+            }
+        }
+
+        await this.updatePortraitData();
+        if (typeof this.updateHealth === 'function') {
+            await this.updateHealth();
+        }
+
+        return this.element;
+    }
+
+    /**
      * Create appropriate media element for portrait (img or video)
      * Supports animated tokens in webm, mp4, ogg, ogv formats
      * @param {string} src - Media source URL

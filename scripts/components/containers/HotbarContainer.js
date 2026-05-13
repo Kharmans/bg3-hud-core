@@ -34,6 +34,24 @@ export class HotbarContainer extends BG3Component {
         this._dragRenderInFlight = false;
         this._dragRenderQueued = false;
     }
+
+    /**
+     * Update actor/token references after swapping controlled token (soft refresh).
+     * @param {Actor} actor
+     * @param {Token} token
+     */
+    setActorToken(actor, token) {
+        this.actor = actor;
+        this.token = token;
+        if (this.activeEffectsContainer) {
+            this.activeEffectsContainer.actor = actor;
+            this.activeEffectsContainer.token = token;
+        }
+        if (this.passivesContainer) {
+            this.passivesContainer.actor = actor;
+            this.passivesContainer.token = token;
+        }
+    }
     
     /**
      * Get default grids configuration

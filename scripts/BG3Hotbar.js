@@ -1,4 +1,4 @@
-import { BG3HUD_REGISTRY } from './utils/registry.js';
+import { BG3HUD_API, BG3HUD_REGISTRY } from './utils/registry.js';
 import { applyMacrobarCollapseSetting, applyTheme, applyAppearanceSettings } from './utils/settings.js';
 import { PersistenceManager } from './managers/PersistenceManager.js';
 import { InteractionCoordinator } from './managers/InteractionCoordinator.js';
@@ -52,6 +52,12 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
         this.currentToken = null;
         this.currentActor = null;
         this.overrideGMHotbar = false; // Flag to manually override GM hotbar
+
+        // Debounce state for refresh coalescing
+        this._refreshDebounceTimer = null;
+        this._refreshGeneration = 0;
+        /** @type {boolean} Track whether theme has been applied at least once */
+        this._themeApplied = false;
 
         // Initialize managers
         this.persistenceManager = new PersistenceManager();
@@ -123,50 +129,272 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
 
         // Get display settings from active adapter
         const adapter = BG3HUD_REGISTRY.activeAdapter;
+        let itemName = 'false';
+        let itemUse = 'false';
         if (adapter && typeof adapter.getDisplaySettings === 'function') {
             const settings = adapter.getDisplaySettings();
+            itemName = String(!!settings.showItemNames);
+            itemUse = String(!!settings.showItemUses);
+        }
 
-            // Convert boolean to string for data attributes (CSS checks for string "true")
-            const itemName = String(!!settings.showItemNames);
-            const itemUse = String(!!settings.showItemUses);
+        // Apply to the container element which CSS targets
+        const target = this.element.querySelector('#bg3-hotbar-container') || this.element;
+        target.dataset.itemName = itemName;
+        target.dataset.itemUse = itemUse;
+    }
 
-            // Apply to the container element which CSS targets
-            const container = this.element?.querySelector('#bg3-hotbar-container');
-            if (container) {
-                container.dataset.itemName = itemName;
-                container.dataset.itemUse = itemUse;
-            } else {
-                this.element.dataset.itemName = itemName;
-                this.element.dataset.itemUse = itemUse;
+    /**
+     * True when the HUD shell matches normal token mode (components built) so a
+     * token->token change can update in place without Application teardown.
+     * @private
+     */
+    _canSoftTokenRefresh() {
+        if (!this.rendered) return false;
+        if (!this.currentToken || !this.currentActor) return false;
+        if (this.overrideGMHotbar) return false;
+        if (this.canGMHotbar()) return false;
+        const c = this.components;
+        return !!(c?.hotbar?.gridContainers?.length
+            && c?.portrait?.element
+            && c?.weaponSets?.gridContainers?.length
+            && c?.quickAccess?.gridContainers?.length);
+    }
+
+    /**
+     * Persisted grid counts must match existing DOM grid counts; otherwise a full rebuild is required.
+     * @private
+     */
+    _stateMatchesExistingLayout(state) {
+        if (!state) return false;
+        const hotbar = this.components?.hotbar;
+        if (!state.hotbar?.grids || !hotbar?.gridContainers) return false;
+        if (state.hotbar.grids.length !== hotbar.gridContainers.length) return false;
+        const weaponSets = this.components?.weaponSets;
+        if (!state.weaponSets?.sets || !weaponSets?.gridContainers) return false;
+        if (state.weaponSets.sets.length !== weaponSets.gridContainers.length) return false;
+        const quickAccess = this.components?.quickAccess;
+        if (!state.quickAccess?.grids || !quickAccess?.gridContainers) return false;
+        if (state.quickAccess.grids.length !== quickAccess.gridContainers.length) return false;
+        return true;
+    }
+
+    /**
+     * Rebind actor/token references on live components after controlled token changes.
+     * @private
+     */
+    _rebindComponentActors(actor, token) {
+        const hotbar = this.components.hotbar;
+        if (hotbar && typeof hotbar.setActorToken === 'function') {
+            hotbar.setActorToken(actor, token);
+        } else if (hotbar) {
+            hotbar.actor = actor;
+            hotbar.token = token;
+            if (hotbar.activeEffectsContainer) {
+                hotbar.activeEffectsContainer.actor = actor;
+                hotbar.activeEffectsContainer.token = token;
             }
-        } else {
-            // Fallback: no display options if no adapter
-            const container = this.element?.querySelector('#bg3-hotbar-container');
-            if (container) {
-                container.dataset.itemName = 'false';
-                container.dataset.itemUse = 'false';
-            } else {
-                this.element.dataset.itemName = 'false';
-                this.element.dataset.itemUse = 'false';
+            if (hotbar.passivesContainer) {
+                hotbar.passivesContainer.actor = actor;
+                hotbar.passivesContainer.token = token;
             }
+        }
+
+        if (this.components.weaponSets) {
+            this.components.weaponSets.actor = actor;
+            this.components.weaponSets.token = token;
+        }
+        if (this.components.quickAccess) {
+            this.components.quickAccess.actor = actor;
+            this.components.quickAccess.token = token;
+        }
+        if (this.components.info) {
+            this.components.info.actor = actor;
+            this.components.info.token = token;
+        }
+        if (this.components.portrait) {
+            this.components.portrait.actor = actor;
+            this.components.portrait.token = token;
+            if (this.components.portrait.infoContainer) {
+                this.components.portrait.infoContainer.actor = actor;
+                this.components.portrait.infoContainer.token = token;
+            }
+        }
+        if (this.components.filters) {
+            this.components.filters.actor = actor;
+            this.components.filters.token = token;
+        }
+        if (this.components.actionButtons) {
+            this.components.actionButtons.actor = actor;
+            this.components.actionButtons.token = token;
+        }
+        if (this.components.situationalBonuses) {
+            this.components.situationalBonuses.actor = actor;
+            this.components.situationalBonuses.token = token;
+        }
+        if (this.components.cprGenericActions) {
+            this.components.cprGenericActions.actor = actor;
+            this.components.cprGenericActions.token = token;
+        }
+    }
+
+    /**
+     * Add/remove HotbarViewsContainer when PC vs NPC context changes.
+     * @private
+     */
+    async _syncHotbarViewsForActor() {
+        const isPlayerCharacter = this.currentActor?.hasPlayerOwner || this.currentActor?.type === 'character';
+        const hotbar = this.components.hotbar;
+        if (!hotbar?.element) return;
+
+        if (isPlayerCharacter && !this.components.views) {
+            this.components.views = new HotbarViewsContainer({ hotbarApp: this });
+            hotbar.element.appendChild(await this.components.views.render());
+        } else if (!isPlayerCharacter && this.components.views) {
+            this.components.views.destroy();
+            delete this.components.views;
+        } else if (isPlayerCharacter && this.components.views) {
+            await this.components.views.render();
+        }
+    }
+
+    /**
+     * Reload persistence for the new token and patch live components (no fade, no Application.render).
+     * Falls back to full refresh when layout counts diverge.
+     * @private
+     */
+    async _softTokenSwapRefresh() {
+        this.persistenceManager.setToken(this.currentToken);
+        let state = await this.persistenceManager.loadState();
+        state = await this.persistenceManager.hydrateState(state);
+
+        if (!this._stateMatchesExistingLayout(state)) {
+            await this.refresh({ forceFull: true });
+            return;
+        }
+
+        this._rebindComponentActors(this.currentActor, this.currentToken);
+        await this.updateCoordinator.applyUnifiedState(state);
+
+        if (this.components.hotbar?.activeEffectsContainer) {
+            await this.components.hotbar.activeEffectsContainer.render();
+        }
+        if (this.components.hotbar?.passivesContainer) {
+            await this.components.hotbar.passivesContainer.render();
+        }
+
+        if (this.components.portrait && typeof this.components.portrait.swapTokenContext === 'function') {
+            await this.components.portrait.swapTokenContext(this.currentActor, this.currentToken);
+        }
+
+        await this._syncHotbarViewsForActor();
+
+        if (this.components.filters && typeof this.components.filters.update === 'function') {
+            await this.components.filters.update();
+        }
+
+        for (const key of ['situationalBonuses', 'cprGenericActions']) {
+            const comp = this.components[key];
+            if (comp && typeof comp.render === 'function') {
+                await comp.render();
+            }
+        }
+
+        if (this.components.actionButtons && typeof this.components.actionButtons.render === 'function') {
+            await this.components.actionButtons.render();
+        }
+
+        this.updateDisplaySettings();
+        applyMacrobarCollapseSetting(this.isVisible);
+        applyAppearanceSettings();
+
+        const adapter = BG3HUD_API.getActiveAdapter();
+        if (adapter?.updateCellDepletionStates && this.currentActor) {
+            queueMicrotask(() => {
+                try {
+                    adapter.updateCellDepletionStates(this.currentActor, {});
+                } catch (e) {
+                    console.warn('[bg3-hud-core] updateCellDepletionStates after token swap failed:', e);
+                }
+            });
         }
     }
 
     /**
      * Refresh the hotbar (re-render)
+     * Debounced: rapid calls within 50ms are coalesced into a single render.
+     * Uses CSS transitionend instead of hard setTimeout for fade-out.
+     * @param {Object} [options]
+     * @param {boolean} [options.tokenSwap] When true, prefer in-place token swap (no fade/tear-down).
+     * @param {boolean} [options.forceFull] Skip soft token path (used when soft swap falls back).
      */
-    async refresh() {
+    async refresh(options = {}) {
+        const tokenSwap = options.tokenSwap === true;
+        const forceFull = options.forceFull === true;
+
         if (!this.rendered) return;
 
-        // Add fade-out transition before re-rendering
-        if (this.element && !this.element.classList.contains('bg3-hud-building')) {
+        if (!forceFull && tokenSwap && this._canSoftTokenRefresh()) {
+            // Supersede any debounced full refresh that is still in-flight from before this
+            // token swap (or that starts while we await persistence). Those calls captured
+            // an older `_refreshGeneration` and would otherwise reach `render()` after soft
+            // swap and destroy the live DOM (visible flash).
+            this._refreshGeneration++;
+            try {
+                await this._softTokenSwapRefresh();
+            } finally {
+                this._refreshGeneration++;
+            }
+            return;
+        }
+
+        // First time building token/GM HUD shell (no hotbar yet): skip debounce and
+        // fade-out — avoids ~250ms of artificial delay and a teardown flash after load
+        // or first selection when nothing is on screen to transition from.
+        const coldHudBuild = !this.components?.hotbar
+            && !!(this.currentToken
+                || this.overrideGMHotbar
+                || this.canGMHotbar());
+
+        // Increment generation to invalidate any previous pending refresh
+        const generation = ++this._refreshGeneration;
+
+        // Cancel any pending debounce timer
+        if (this._refreshDebounceTimer) {
+            clearTimeout(this._refreshDebounceTimer);
+            this._refreshDebounceTimer = null;
+        }
+
+        if (!coldHudBuild) {
+            // Debounce: wait 50ms for rapid calls to coalesce (e.g., multi-token select)
+            await new Promise(resolve => {
+                this._refreshDebounceTimer = setTimeout(resolve, 50);
+            });
+
+            // If a newer refresh was requested while we waited, bail out
+            if (generation !== this._refreshGeneration) return;
+        }
+
+        // Add fade-out transition before re-rendering (not for cold first build)
+        if (!coldHudBuild
+            && this.element
+            && !this.element.classList.contains('bg3-hud-building')) {
             this.element.classList.remove('bg3-hud-visible');
             this.element.classList.add('bg3-hud-fading-out');
 
-            // Wait for fade-out transition to complete
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // Wait for CSS transition to finish, with safety cap at 200ms
+            await new Promise(resolve => {
+                const safetyTimeout = setTimeout(resolve, 200);
+                this.element?.addEventListener('transitionend', function handler() {
+                    clearTimeout(safetyTimeout);
+                    resolve();
+                }, { once: true });
+            });
+
+            // Check again after waiting — a newer call may have superseded us
+            if (generation !== this._refreshGeneration) return;
         }
 
+        if (generation !== this._refreshGeneration) return;
         await this.render(false);
     }
 
@@ -191,8 +419,12 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
     async _onRender(context, options) {
         await super._onRender(context, options);
 
-        // Apply theme CSS variables
-        await applyTheme();
+        // Apply theme CSS variables — only on first render.
+        // Subsequent theme changes are applied by ThemeSettingDialog.close().
+        if (!this._themeApplied) {
+            await applyTheme();
+            this._themeApplied = true;
+        }
 
         // Apply display settings
         this.updateDisplaySettings();
@@ -326,8 +558,7 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             if (this.element) {
                 this.element.classList.add('bg3-hud-hidden');
             }
-            // Apply macrobar setting since HUD is now hidden (Issue #8)
-            applyMacrobarCollapseSetting(false);
+            // Macrobar sync handled by _onRender after this returns (Issue #8)
             return;
         }
 
