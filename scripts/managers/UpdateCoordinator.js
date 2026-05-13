@@ -95,12 +95,12 @@ export class UpdateCoordinator {
                 this.hotbarApp.overrideGMHotbar = false;
                 this.hotbarApp.currentToken = controlledTokens[0];
                 this.hotbarApp.currentActor = controlledTokens[0].actor;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             } else if (controlledTokens.length !== 1 && this.hotbarApp.currentToken) {
                 // We lost our single valid selection
                 this.hotbarApp.currentToken = null;
                 this.hotbarApp.currentActor = null;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             }
             return;
         }
@@ -111,13 +111,13 @@ export class UpdateCoordinator {
                 console.debug('[bg3-hud-core] Multiple tokens controlled');
                 this.hotbarApp.currentToken = null;
                 this.hotbarApp.currentActor = null;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             } else if (controlledTokens.length === 1) {
                 // Single token controlled - show UI normally
                 this.hotbarApp.overrideGMHotbar = false; // Clear override when selecting token
                 this.hotbarApp.currentToken = token;
                 this.hotbarApp.currentActor = token.actor;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             }
         } else {
             // Check if deselect lock is enabled - if so, keep the current token
@@ -133,13 +133,13 @@ export class UpdateCoordinator {
                 const remainingToken = controlledTokens[0];
                 this.hotbarApp.currentToken = remainingToken;
                 this.hotbarApp.currentActor = remainingToken.actor;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             } else {
                 // No tokens selected or multiple tokens selected
                 // Show GM hotbar if enabled, otherwise hide
                 this.hotbarApp.currentToken = null;
                 this.hotbarApp.currentActor = null;
-                await this.hotbarApp.refresh();
+                await this.hotbarApp.refresh({ tokenSwap: true });
             }
 
             // DON'T clear _lastSaveWasLocal here - let the updateActor hook handle it
@@ -173,7 +173,7 @@ export class UpdateCoordinator {
             this.hotbarApp.currentToken = null;
             this.hotbarApp.currentActor = null;
         }
-        await this.hotbarApp.refresh();
+        await this.hotbarApp.refresh({ tokenSwap: true });
     }
 
     /**
@@ -185,16 +185,25 @@ export class UpdateCoordinator {
     async _onUpdateToken(token, changes) {
         if (token !== this.hotbarApp.currentToken) return;
 
-        // Don't refresh on cosmetic changes
-        const ignoredProperties = ['x', 'y', 'rotation', 'hidden', 'elevation'];
-        const changedKeys = Object.keys(changes);
-        const shouldIgnore = changedKeys.every(key => ignoredProperties.includes(key));
+        // Token tweaks and control changes often emit updateToken with fields that do not
+        // require a HUD rebuild. A bare refresh() runs the fade + full teardown, which
+        // visibly flashes right after soft token swap (controlToken).
+        const ignoredProperties = [
+            'x', 'y', 'rotation', 'hidden', 'elevation',
+            'alpha', 'sort', 'width', 'height', 'scale',
+            'lockRotation', 'mirrorX', 'mirrorY', 'tint',
+            'displayName', 'displayBars', 'bar1', 'bar2', 'disposition',
+            'flags', 'actor', 'actorId', 'delta', 'effects', 'ring', 'ovrl', 'subject'
+        ];
+        const changedKeys = Object.keys(changes || {});
+        const shouldIgnore = changedKeys.length === 0
+            || changedKeys.every(key => ignoredProperties.includes(key));
 
         if (shouldIgnore) {
             return;
         }
 
-        await this.hotbarApp.refresh();
+        await this.hotbarApp.refresh({ tokenSwap: true });
     }
 
     /**
@@ -314,16 +323,15 @@ export class UpdateCoordinator {
     }
 
     /**
-     * Handle HUD state update
-     * Reload state and update all containers in place
-     * Uses unified update pattern for all containers
-     * @private
+     * Apply unified HUD state to existing grid components (no Application teardown).
+     * Used for soft token swaps and any caller that has already loaded/hydrated `state`.
+     * @param {Object} state - Full hudState object from PersistenceManager
      */
-    async _handleStateUpdate() {
-        const state = await this.persistenceManager.loadState();
+    async applyUnifiedState(state) {
+        if (!state) return;
 
         // Update hotbar grids (multiple grids)
-        if (this.hotbarApp.components?.hotbar) {
+        if (this.hotbarApp.components?.hotbar && state.hotbar?.grids) {
             const hotbar = this.hotbarApp.components.hotbar;
             hotbar.grids = state.hotbar.grids;
 
@@ -334,13 +342,18 @@ export class UpdateCoordinator {
                     gridContainer.rows = gridData.rows;
                     gridContainer.cols = gridData.cols;
                     gridContainer.items = gridData.items;
+                    if (gridData.cols === 0) {
+                        gridContainer.element.style.display = 'none';
+                    } else {
+                        gridContainer.element.style.display = '';
+                    }
                     await gridContainer.render();
                 }
             }
         }
 
         // Update weapon sets (multiple grids)
-        if (this.hotbarApp.components?.weaponSets) {
+        if (this.hotbarApp.components?.weaponSets && state.weaponSets?.sets) {
             const weaponSets = this.hotbarApp.components.weaponSets;
             weaponSets.weaponSets = state.weaponSets.sets;
 
@@ -353,19 +366,19 @@ export class UpdateCoordinator {
                 }
             }
 
-            // Update active set
-            await weaponSets.setActiveSet(state.weaponSets.activeSet, true);
+            if (state.weaponSets.activeSet !== undefined && typeof weaponSets.setActiveSet === 'function') {
+                await weaponSets.setActiveSet(state.weaponSets.activeSet, true);
+            }
         }
 
-        // Update quick access (now normalized as array of grids)
-        if (this.hotbarApp.components?.quickAccess) {
+        // Update quick access (normalised as array of grids)
+        if (this.hotbarApp.components?.quickAccess && state.quickAccess?.grids?.length) {
             const quickAccess = this.hotbarApp.components.quickAccess;
             quickAccess.grids = state.quickAccess.grids;
 
-            // Use same pattern as hotbar/weaponSets for consistency
             const gridData = quickAccess.grids[0];
             const gridContainer = quickAccess.gridContainers[0];
-            if (gridContainer) {
+            if (gridContainer && gridData) {
                 gridContainer.rows = gridData.rows;
                 gridContainer.cols = gridData.cols;
                 gridContainer.items = gridData.items;
@@ -581,7 +594,7 @@ export class UpdateCoordinator {
             }
         } catch (e) {
             console.error('[bg3-hud-core] UpdateCoordinator: Failed to handle embedded item change', e);
-            await this.hotbarApp.refresh();
+            await this.hotbarApp.refresh({ tokenSwap: true });
         }
     }
 

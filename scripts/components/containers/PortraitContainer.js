@@ -37,18 +37,13 @@ export class PortraitContainer extends BG3Component {
      * @returns {Promise<HTMLElement>}
      */
     async render() {
-        // Create portrait container on first render only
-        if (!this.element) {
-            this.element = this.createElement('div', ['bg3-portrait-container']);
-        }
+        // Create portrait container
+        this.element = this.createElement('div', ['bg3-portrait-container']);
 
         if (!this.token) {
             console.warn('PortraitContainer | No token provided');
             return this.element;
         }
-
-        // Clear for re-population (Portrait is complex enough that clearing content is safer for now)
-        this.element.innerHTML = '';
 
         // Add info container if provided (positioned above portrait)
         if (this.infoContainer) {
@@ -77,6 +72,68 @@ export class PortraitContainer extends BG3Component {
 
         // Register context menu for portrait image
         this._registerPortraitMenu(imageContainer);
+
+        return this.element;
+    }
+
+    /**
+     * Swap portrait + info to a new controlled token without rebuilding the container shell.
+     * @param {Actor} actor
+     * @param {Token} token
+     * @returns {Promise<HTMLElement>}
+     */
+    async swapTokenContext(actor, token) {
+        this.actor = actor;
+        this.token = token;
+
+        if (this.infoContainer) {
+            this.infoContainer.actor = actor;
+            this.infoContainer.token = token;
+            if (typeof this.infoContainer.update === 'function') {
+                await this.infoContainer.update();
+            }
+        }
+
+        const sub = this.element?.querySelector('.portrait-image-subcontainer');
+        if (sub && token) {
+            const src = await this.getPortraitImage();
+            const videoExtensions = ['webm', 'mp4', 'ogg', 'ogv'];
+            const extension = src?.split('.').pop()?.toLowerCase() || '';
+            const isVideo = videoExtensions.includes(extension);
+
+            const existing = sub.querySelector('.portrait-image, .portrait-video');
+            const existingIsVideo = existing?.tagName === 'VIDEO';
+
+            if (existing && isVideo === existingIsVideo) {
+                if (isVideo) {
+                    existing.src = src || '';
+                    try {
+                        existing.load?.();
+                    } catch {
+                        /* ignore */
+                    }
+                } else {
+                    existing.src = src || '';
+                }
+                existing.alt = this.actor?.name || 'Portrait';
+            } else {
+                if (existing) existing.remove();
+                sub.appendChild(this._createMediaElement(src, this.actor?.name || 'Portrait'));
+            }
+        }
+
+        const imageContainer = this.element?.querySelector('.portrait-image-container');
+        if (imageContainer) {
+            const subContainer = imageContainer.querySelector('.portrait-image-subcontainer');
+            if (subContainer) {
+                this._applyPortraitScale(subContainer);
+            }
+        }
+
+        await this.updatePortraitData();
+        if (typeof this.updateHealth === 'function') {
+            await this.updateHealth();
+        }
 
         return this.element;
     }

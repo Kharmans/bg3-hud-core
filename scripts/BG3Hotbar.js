@@ -1,4 +1,4 @@
-import { BG3HUD_REGISTRY } from './utils/registry.js';
+import { BG3HUD_API, BG3HUD_REGISTRY } from './utils/registry.js';
 import { applyMacrobarCollapseSetting, applyTheme, applyAppearanceSettings } from './utils/settings.js';
 import { PersistenceManager } from './managers/PersistenceManager.js';
 import { InteractionCoordinator } from './managers/InteractionCoordinator.js';
@@ -58,10 +58,6 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
         this._refreshGeneration = 0;
         /** @type {boolean} Track whether theme has been applied at least once */
         this._themeApplied = false;
-
-        // UI Structure tracking for component recycling
-        this.regions = {};
-        this._lastInitMode = null; // 'token', 'gm', or null
 
         // Initialize managers
         this.persistenceManager = new PersistenceManager();
@@ -148,12 +144,208 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
     }
 
     /**
+     * True when the HUD shell matches normal token mode (components built) so a
+     * token->token change can update in place without Application teardown.
+     * @private
+     */
+    _canSoftTokenRefresh() {
+        if (!this.rendered) return false;
+        if (!this.currentToken || !this.currentActor) return false;
+        if (this.overrideGMHotbar) return false;
+        if (this.canGMHotbar()) return false;
+        const c = this.components;
+        return !!(c?.hotbar?.gridContainers?.length
+            && c?.portrait?.element
+            && c?.weaponSets?.gridContainers?.length
+            && c?.quickAccess?.gridContainers?.length);
+    }
+
+    /**
+     * Persisted grid counts must match existing DOM grid counts; otherwise a full rebuild is required.
+     * @private
+     */
+    _stateMatchesExistingLayout(state) {
+        if (!state) return false;
+        const hotbar = this.components?.hotbar;
+        if (!state.hotbar?.grids || !hotbar?.gridContainers) return false;
+        if (state.hotbar.grids.length !== hotbar.gridContainers.length) return false;
+        const weaponSets = this.components?.weaponSets;
+        if (!state.weaponSets?.sets || !weaponSets?.gridContainers) return false;
+        if (state.weaponSets.sets.length !== weaponSets.gridContainers.length) return false;
+        const quickAccess = this.components?.quickAccess;
+        if (!state.quickAccess?.grids || !quickAccess?.gridContainers) return false;
+        if (state.quickAccess.grids.length !== quickAccess.gridContainers.length) return false;
+        return true;
+    }
+
+    /**
+     * Rebind actor/token references on live components after controlled token changes.
+     * @private
+     */
+    _rebindComponentActors(actor, token) {
+        const hotbar = this.components.hotbar;
+        if (hotbar && typeof hotbar.setActorToken === 'function') {
+            hotbar.setActorToken(actor, token);
+        } else if (hotbar) {
+            hotbar.actor = actor;
+            hotbar.token = token;
+            if (hotbar.activeEffectsContainer) {
+                hotbar.activeEffectsContainer.actor = actor;
+                hotbar.activeEffectsContainer.token = token;
+            }
+            if (hotbar.passivesContainer) {
+                hotbar.passivesContainer.actor = actor;
+                hotbar.passivesContainer.token = token;
+            }
+        }
+
+        if (this.components.weaponSets) {
+            this.components.weaponSets.actor = actor;
+            this.components.weaponSets.token = token;
+        }
+        if (this.components.quickAccess) {
+            this.components.quickAccess.actor = actor;
+            this.components.quickAccess.token = token;
+        }
+        if (this.components.info) {
+            this.components.info.actor = actor;
+            this.components.info.token = token;
+        }
+        if (this.components.portrait) {
+            this.components.portrait.actor = actor;
+            this.components.portrait.token = token;
+            if (this.components.portrait.infoContainer) {
+                this.components.portrait.infoContainer.actor = actor;
+                this.components.portrait.infoContainer.token = token;
+            }
+        }
+        if (this.components.filters) {
+            this.components.filters.actor = actor;
+            this.components.filters.token = token;
+        }
+        if (this.components.actionButtons) {
+            this.components.actionButtons.actor = actor;
+            this.components.actionButtons.token = token;
+        }
+        if (this.components.situationalBonuses) {
+            this.components.situationalBonuses.actor = actor;
+            this.components.situationalBonuses.token = token;
+        }
+        if (this.components.cprGenericActions) {
+            this.components.cprGenericActions.actor = actor;
+            this.components.cprGenericActions.token = token;
+        }
+    }
+
+    /**
+     * Add/remove HotbarViewsContainer when PC vs NPC context changes.
+     * @private
+     */
+    async _syncHotbarViewsForActor() {
+        const isPlayerCharacter = this.currentActor?.hasPlayerOwner || this.currentActor?.type === 'character';
+        const hotbar = this.components.hotbar;
+        if (!hotbar?.element) return;
+
+        if (isPlayerCharacter && !this.components.views) {
+            this.components.views = new HotbarViewsContainer({ hotbarApp: this });
+            hotbar.element.appendChild(await this.components.views.render());
+        } else if (!isPlayerCharacter && this.components.views) {
+            this.components.views.destroy();
+            delete this.components.views;
+        } else if (isPlayerCharacter && this.components.views) {
+            await this.components.views.render();
+        }
+    }
+
+    /**
+     * Reload persistence for the new token and patch live components (no fade, no Application.render).
+     * Falls back to full refresh when layout counts diverge.
+     * @private
+     */
+    async _softTokenSwapRefresh() {
+        this.persistenceManager.setToken(this.currentToken);
+        let state = await this.persistenceManager.loadState();
+        state = await this.persistenceManager.hydrateState(state);
+
+        if (!this._stateMatchesExistingLayout(state)) {
+            await this.refresh({ forceFull: true });
+            return;
+        }
+
+        this._rebindComponentActors(this.currentActor, this.currentToken);
+        await this.updateCoordinator.applyUnifiedState(state);
+
+        if (this.components.hotbar?.activeEffectsContainer) {
+            await this.components.hotbar.activeEffectsContainer.render();
+        }
+        if (this.components.hotbar?.passivesContainer) {
+            await this.components.hotbar.passivesContainer.render();
+        }
+
+        if (this.components.portrait && typeof this.components.portrait.swapTokenContext === 'function') {
+            await this.components.portrait.swapTokenContext(this.currentActor, this.currentToken);
+        }
+
+        await this._syncHotbarViewsForActor();
+
+        if (this.components.filters && typeof this.components.filters.update === 'function') {
+            await this.components.filters.update();
+        }
+
+        for (const key of ['situationalBonuses', 'cprGenericActions']) {
+            const comp = this.components[key];
+            if (comp && typeof comp.render === 'function') {
+                await comp.render();
+            }
+        }
+
+        if (this.components.actionButtons && typeof this.components.actionButtons.render === 'function') {
+            await this.components.actionButtons.render();
+        }
+
+        this.updateDisplaySettings();
+        applyMacrobarCollapseSetting(this.isVisible);
+        applyAppearanceSettings();
+
+        const adapter = BG3HUD_API.getActiveAdapter();
+        if (adapter?.updateCellDepletionStates && this.currentActor) {
+            queueMicrotask(() => {
+                try {
+                    adapter.updateCellDepletionStates(this.currentActor, {});
+                } catch (e) {
+                    console.warn('[bg3-hud-core] updateCellDepletionStates after token swap failed:', e);
+                }
+            });
+        }
+    }
+
+    /**
      * Refresh the hotbar (re-render)
      * Debounced: rapid calls within 50ms are coalesced into a single render.
      * Uses CSS transitionend instead of hard setTimeout for fade-out.
+     * @param {Object} [options]
+     * @param {boolean} [options.tokenSwap] When true, prefer in-place token swap (no fade/tear-down).
+     * @param {boolean} [options.forceFull] Skip soft token path (used when soft swap falls back).
      */
-    async refresh() {
+    async refresh(options = {}) {
+        const tokenSwap = options.tokenSwap === true;
+        const forceFull = options.forceFull === true;
+
         if (!this.rendered) return;
+
+        if (!forceFull && tokenSwap && this._canSoftTokenRefresh()) {
+            // Supersede any debounced full refresh that is still in-flight from before this
+            // token swap (or that starts while we await persistence). Those calls captured
+            // an older `_refreshGeneration` and would otherwise reach `render()` after soft
+            // swap and destroy the live DOM (visible flash).
+            this._refreshGeneration++;
+            try {
+                await this._softTokenSwapRefresh();
+            } finally {
+                this._refreshGeneration++;
+            }
+            return;
+        }
 
         // Increment generation to invalidate any previous pending refresh
         const generation = ++this._refreshGeneration;
@@ -190,6 +382,7 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             if (generation !== this._refreshGeneration) return;
         }
 
+        if (generation !== this._refreshGeneration) return;
         await this.render(false);
     }
 
@@ -335,22 +528,25 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
      * @private
      */
     async _initializeComponents() {
+        // Clear existing components
+        this._destroyComponents();
+
         // Check if in GM hotbar mode
         const isGMHotbarMode = this.canGMHotbar() || this.overrideGMHotbar;
-        const currentMode = isGMHotbarMode ? 'gm' : 'token';
-        const modeChanged = this._lastInitMode !== currentMode;
 
         // Ensure interaction coordinator has the active adapter early
+        // This is important for proper initialization even when no token is selected (Issue #8)
         if (BG3HUD_REGISTRY?.activeAdapter && this.interactionCoordinator?.setAdapter) {
             this.interactionCoordinator.setAdapter(BG3HUD_REGISTRY.activeAdapter);
         }
 
         // Only initialize if we have a token OR we're in GM hotbar mode
         if (!this.currentToken && !isGMHotbarMode) {
+            // Hide the UI when no token is selected and not in GM mode
             if (this.element) {
                 this.element.classList.add('bg3-hud-hidden');
             }
-            this._lastInitMode = null;
+            // Macrobar sync handled by _onRender after this returns (Issue #8)
             return;
         }
 
@@ -359,42 +555,46 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             this.element.classList.add('bg3-hud-building');
         }
 
-        // Get or create regions
+        // Get the main container
         const container = this.element.querySelector('#bg3-hotbar-container');
-        if (!container) return;
-
-        if (modeChanged || !this.regions.left) {
-            // Full teardown only on mode change or first init
-            this._destroyComponents();
-            container.innerHTML = '';
-            
-            this.regions.left = document.createElement('div');
-            this.regions.left.className = 'bg3-hud-region bg3-hud-region-left';
-            
-            this.regions.center = document.createElement('div');
-            this.regions.center.className = 'bg3-hud-region bg3-hud-region-center';
-            
-            this.regions.right = document.createElement('div');
-            this.regions.right.className = 'bg3-hud-region bg3-hud-region-right';
-            
-            container.appendChild(this.regions.left);
-            container.appendChild(this.regions.center);
-            container.appendChild(this.regions.right);
-            this._lastInitMode = currentMode;
+        if (!container) {
+            console.error('[bg3-hud-core] Container element not found');
+            return;
         }
 
-        const { left: leftRegion, center: centerRegion, right: rightRegion } = this.regions;
+        // Create regions
+        const leftRegion = document.createElement('div');
+        leftRegion.className = 'bg3-hud-region bg3-hud-region-left';
+
+        const centerRegion = document.createElement('div');
+        centerRegion.className = 'bg3-hud-region bg3-hud-region-center';
+
+        const rightRegion = document.createElement('div');
+        rightRegion.className = 'bg3-hud-region bg3-hud-region-right';
+
+        // Clear container and append regions
+        container.innerHTML = ''; // Ensure container is empty
+        container.appendChild(leftRegion);
+        container.appendChild(centerRegion);
+        container.appendChild(rightRegion);
 
         // Set the current token in persistence manager and load state
-        this.persistenceManager.setToken(isGMHotbarMode ? null : this.currentToken);
+        if (isGMHotbarMode) {
+            // GM hotbar mode: set token to null to trigger GM mode in persistence manager
+            this.persistenceManager.setToken(null);
+        } else {
+            this.persistenceManager.setToken(this.currentToken);
+        }
+
         let state = await this.persistenceManager.loadState();
 
-        // Hydrate state in parallel
+        // Hydrate state to ensure fresh item data (quantity, uses, etc.)
+        // Only hydrate if we have an actor (not in GM mode)
         if (!isGMHotbarMode) {
             state = await this.persistenceManager.hydrateState(state);
         }
 
-        // Shared interaction handlers
+        // Create shared interaction handlers (delegates to InteractionCoordinator)
         const handlers = {
             onCellClick: this.interactionCoordinator.handleClick.bind(this.interactionCoordinator),
             onCellRightClick: this.interactionCoordinator.handleRightClick.bind(this.interactionCoordinator),
@@ -403,171 +603,94 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             onCellDrop: this.interactionCoordinator.handleDrop.bind(this.interactionCoordinator)
         };
 
-        const contextOptions = {
-            actor: this.currentActor,
-            token: this.currentToken,
-            grids: state.hotbar.grids,
-            ...handlers
-        };
-
-        // Component Recycling / Creation
-        const maybeAppend = async (component, parent) => {
-            const element = await component.render();
-            if (element && element.parentElement !== parent) {
-                parent.appendChild(element);
-            }
-            return component;
-        };
-
+        // GM hotbar mode: only create hotbar and control container
         if (isGMHotbarMode) {
-            // GM Mode
-            if (this.components.hotbar) {
-                this.components.hotbar.updateContext({ grids: state.hotbar.grids, ...handlers });
-            } else {
-                this.components.hotbar = await this.componentFactory.createHotbarContainer(state.hotbar.grids, handlers);
-            }
-            await maybeAppend(this.components.hotbar, centerRegion);
+            // Create hotbar container from GM hotbar state
+            this.components.hotbar = await this.componentFactory.createHotbarContainer(state.hotbar.grids, handlers);
+            centerRegion.appendChild(await this.components.hotbar.render()); // Append to CENTER
 
-            if (this.components.controls) {
-                this.components.controls.updateContext({ hotbarApp: this });
-            } else {
-                this.components.controls = await this.componentFactory.createControlContainer();
-            }
-            // Controls usually go inside the hotbar element for positioning
-            await maybeAppend(this.components.controls, this.components.hotbar.element);
+            // Create control container
+            this.components.controls = await this.componentFactory.createControlContainer();
+            this.components.hotbar.element.appendChild(await this.components.controls.render());
         } else {
-            // Token Mode
-            // Portrait
-            if (this.components.portrait) {
-                this.components.portrait.updateContext({ actor: this.currentActor, token: this.currentToken });
-            } else {
-                this.components.portrait = await this.componentFactory.createPortraitContainer();
-            }
-            await maybeAppend(this.components.portrait, leftRegion);
+            // Normal token mode: create all components
+            // Create info container (if adapter provides one)
+            this.components.info = await this.componentFactory.createInfoContainer();
+            // Info container is usually attached to portrait, but if standalone, where does it go?
+            // Assuming portrait integration for now based on previous code.
 
-            // Info (optional)
-            const InfoClass = BG3HUD_REGISTRY.infoContainer;
-            if (InfoClass) {
-                if (this.components.info) {
-                    this.components.info.updateContext({ actor: this.currentActor, token: this.currentToken });
-                } else {
-                    this.components.info = await this.componentFactory.createInfoContainer();
-                    if (this.components.info) this.components.portrait.infoContainer = this.components.info;
-                }
-                // Info is handled inside PortraitContainer.render()
-            } else if (this.components.info) {
-                this.components.info.destroy();
-                delete this.components.info;
+            // Create portrait container (uses adapter if available)
+            // Pass info container to portrait so it can be positioned above it
+            this.components.portrait = await this.componentFactory.createPortraitContainer();
+            if (this.components.info) {
+                this.components.portrait.infoContainer = this.components.info;
             }
+            leftRegion.appendChild(await this.components.portrait.render()); // Append to LEFT
 
-            // Wrapper for Weapons/Quick
-            let weaponQuickWrapper = leftRegion.querySelector('.bg3-weapon-quick-wrapper');
-            if (!weaponQuickWrapper) {
-                weaponQuickWrapper = document.createElement('div');
-                weaponQuickWrapper.className = 'bg3-weapon-quick-wrapper';
-                leftRegion.appendChild(weaponQuickWrapper);
-            }
+            // Create wrapper for weapon sets and quick access
+            // This wrapper was previously direct child, now goes into LEFT region after portrait
+            const weaponQuickWrapper = document.createElement('div');
+            weaponQuickWrapper.className = 'bg3-weapon-quick-wrapper';
+            leftRegion.appendChild(weaponQuickWrapper); // Append to LEFT
 
-            // Weapon Sets
-            if (this.components.weaponSets) {
-                this.components.weaponSets.updateContext({ 
-                    actor: this.currentActor, 
-                    token: this.currentToken, 
-                    weaponSets: state.weaponSets.sets,
-                    ...handlers 
-                });
-            } else {
-                this.components.weaponSets = await this.componentFactory.createWeaponSetsContainer(state.weaponSets.sets, handlers);
-            }
-            await maybeAppend(this.components.weaponSets, weaponQuickWrapper);
+            // Create weapon sets container from UNIFIED state
+            this.components.weaponSets = await this.componentFactory.createWeaponSetsContainer(state.weaponSets.sets, handlers);
+            weaponQuickWrapper.appendChild(await this.components.weaponSets.render());
             await this.components.weaponSets.setActiveSet(state.weaponSets.activeSet, true);
 
-            // Quick Access
-            if (this.components.quickAccess) {
-                this.components.quickAccess.updateContext({ 
-                    actor: this.currentActor, 
-                    token: this.currentToken, 
-                    grids: state.quickAccess.grids ?? [state.quickAccess],
-                    ...handlers 
-                });
-            } else {
-                this.components.quickAccess = await this.componentFactory.createQuickAccessContainer(state.quickAccess, handlers);
-            }
-            await maybeAppend(this.components.quickAccess, weaponQuickWrapper);
+            // Create quick access container from UNIFIED state (now arrays of grids)
+            this.components.quickAccess = await this.componentFactory.createQuickAccessContainer(state.quickAccess, handlers);
+            weaponQuickWrapper.appendChild(await this.components.quickAccess.render());
 
-            // Situational Bonuses
+            // Create situational bonuses container (if adapter provides one) - positioned between weapon sets and hotbar
+            // Currently hanging on the left, so append to LEFT region
+            this.components.situationalBonuses = await this.componentFactory.createSituationalBonusesContainer();
             if (this.components.situationalBonuses) {
-                this.components.situationalBonuses.updateContext({ actor: this.currentActor, token: this.currentToken });
-            } else {
-                this.components.situationalBonuses = await this.componentFactory.createSituationalBonusesContainer();
+                const situationalBonusesElement = await this.components.situationalBonuses.render();
+                leftRegion.appendChild(situationalBonusesElement); // Append to LEFT
             }
-            if (this.components.situationalBonuses) await maybeAppend(this.components.situationalBonuses, leftRegion);
 
-            // CPR Generic Actions
+            // Create CPR Generic Actions container (if adapter provides one) - positioned next to situational bonuses
+            // Appending to LEFT region
+            this.components.cprGenericActions = await this.componentFactory.createCPRGenericActionsContainer();
             if (this.components.cprGenericActions) {
-                this.components.cprGenericActions.updateContext({ actor: this.currentActor, token: this.currentToken });
-            } else {
-                this.components.cprGenericActions = await this.componentFactory.createCPRGenericActionsContainer();
+                const cprGenericActionsElement = await this.components.cprGenericActions.render();
+                leftRegion.appendChild(cprGenericActionsElement); // Append to LEFT
             }
-            if (this.components.cprGenericActions) await maybeAppend(this.components.cprGenericActions, leftRegion);
 
-            // Hotbar
-            if (this.components.hotbar) {
-                this.components.hotbar.updateContext({ 
-                    actor: this.currentActor, 
-                    token: this.currentToken, 
-                    grids: state.hotbar.grids,
-                    ...handlers 
-                });
-            } else {
-                this.components.hotbar = await this.componentFactory.createHotbarContainer(state.hotbar.grids, handlers);
-            }
-            await maybeAppend(this.components.hotbar, centerRegion);
+            // Create hotbar container from UNIFIED state
+            this.components.hotbar = await this.componentFactory.createHotbarContainer(state.hotbar.grids, handlers);
+            centerRegion.appendChild(await this.components.hotbar.render()); // Append to CENTER
 
-            // Filters
+            // Create filter container (if adapter provides one and setting is enabled)
             if (game.settings.get('bg3-hud-core', 'showFilters')) {
+                this.components.filters = await this.componentFactory.createFilterContainer();
                 if (this.components.filters) {
-                    this.components.filters.updateContext({ actor: this.currentActor, token: this.currentToken });
-                } else {
-                    this.components.filters = await this.componentFactory.createFilterContainer();
+                    this.components.hotbar.element.appendChild(await this.components.filters.render());
                 }
-                if (this.components.filters) await maybeAppend(this.components.filters, this.components.hotbar.element);
-            } else if (this.components.filters) {
-                this.components.filters.destroy();
-                delete this.components.filters;
             }
 
-            // Views
+            // Create views container - positioned at bottom center of hotbar
+            // Only show for player characters (not NPCs)
             const isPlayerCharacter = this.currentActor?.hasPlayerOwner || this.currentActor?.type === 'character';
             if (isPlayerCharacter) {
-                if (!this.components.views) {
-                    this.components.views = new HotbarViewsContainer({ hotbarApp: this });
-                }
-                await maybeAppend(this.components.views, this.components.hotbar.element);
-            } else if (this.components.views) {
-                this.components.views.destroy();
-                delete this.components.views;
+                this.components.views = new HotbarViewsContainer({
+                    hotbarApp: this
+                });
+                this.components.hotbar.element.appendChild(await this.components.views.render());
             }
 
-            // Action Buttons
+            // Create action buttons container (rest/turn buttons if adapter provides them)
+            this.components.actionButtons = await this.componentFactory.createActionButtonsContainer();
             if (this.components.actionButtons) {
-                this.components.actionButtons.updateContext({ actor: this.currentActor, token: this.currentToken });
-            } else {
-                this.components.actionButtons = await this.componentFactory.createActionButtonsContainer();
+                rightRegion.appendChild(await this.components.actionButtons.render()); // Append to RIGHT
             }
-            if (this.components.actionButtons) await maybeAppend(this.components.actionButtons, rightRegion);
 
-            // Controls
-            if (this.components.controls) {
-                this.components.controls.updateContext({ hotbarApp: this });
-            } else {
-                this.components.controls = await this.componentFactory.createControlContainer();
-            }
-            await maybeAppend(this.components.controls, this.components.hotbar.element);
+            // Create control container
+            this.components.controls = await this.componentFactory.createControlContainer();
+            this.components.hotbar.element.appendChild(await this.components.controls.render());
         }
 
-        // Finalize state: ensure all current components are rendered.
-        // We don't need a Promise.all(render) here because maybeAppend already awaits render().
     }
 
     /**
@@ -596,7 +719,6 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             }
         }
         this.components = {};
-        this.regions = {};
     }
 
     /**
