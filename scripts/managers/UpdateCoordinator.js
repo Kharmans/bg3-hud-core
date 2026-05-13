@@ -114,9 +114,18 @@ export class UpdateCoordinator {
                 await this.hotbarApp.refresh({ tokenSwap: true });
             } else if (controlledTokens.length === 1) {
                 // Single token controlled - show UI normally
+                const t = token;
+                if (this.hotbarApp.currentToken?.id === t.id
+                    && this.hotbarApp.currentActor?.id === t.actor?.id
+                    && this.hotbarApp.components?.hotbar
+                    && this.hotbarApp.rendered) {
+                    this.hotbarApp.currentToken = t;
+                    this.hotbarApp.currentActor = t.actor;
+                    return;
+                }
                 this.hotbarApp.overrideGMHotbar = false; // Clear override when selecting token
-                this.hotbarApp.currentToken = token;
-                this.hotbarApp.currentActor = token.actor;
+                this.hotbarApp.currentToken = t;
+                this.hotbarApp.currentActor = t.actor;
                 await this.hotbarApp.refresh({ tokenSwap: true });
             }
         } else {
@@ -163,6 +172,9 @@ export class UpdateCoordinator {
             return adapter && typeof adapter.isCompatible === 'function' ? adapter.isCompatible(t.actor) : t.actor?.type !== 'group';
         });
 
+        const prevTokenId = this.hotbarApp.currentToken?.id ?? null;
+        const prevActorId = this.hotbarApp.currentActor?.id ?? null;
+
         if (controlledTokens.length === 1) {
             // Single token selected - show HUD for it
             const token = controlledTokens[0];
@@ -173,6 +185,20 @@ export class UpdateCoordinator {
             this.hotbarApp.currentToken = null;
             this.hotbarApp.currentActor = null;
         }
+
+        const nextTokenId = this.hotbarApp.currentToken?.id ?? null;
+        const nextActorId = this.hotbarApp.currentActor?.id ?? null;
+        const contextUnchanged = prevTokenId === nextTokenId && prevActorId === nextActorId;
+
+        // ready() may have already rendered this exact context; avoid a second refresh
+        // (soft swap still re-hydrates all grids — visible flash — and can fall through to
+        // full rebuild if canSoftTokenRefresh is briefly false).
+        if (contextUnchanged
+            && this.hotbarApp.rendered
+            && this.hotbarApp.components?.hotbar) {
+            return;
+        }
+
         await this.hotbarApp.refresh({ tokenSwap: true });
     }
 
@@ -183,7 +209,7 @@ export class UpdateCoordinator {
      * @private
      */
     async _onUpdateToken(token, changes) {
-        if (token !== this.hotbarApp.currentToken) return;
+        if (token?.id !== this.hotbarApp.currentToken?.id) return;
 
         // Token tweaks and control changes often emit updateToken with fields that do not
         // require a HUD rebuild. A bare refresh() runs the fade + full teardown, which

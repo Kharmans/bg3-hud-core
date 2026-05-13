@@ -347,6 +347,14 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             return;
         }
 
+        // First time building token/GM HUD shell (no hotbar yet): skip debounce and
+        // fade-out — avoids ~250ms of artificial delay and a teardown flash after load
+        // or first selection when nothing is on screen to transition from.
+        const coldHudBuild = !this.components?.hotbar
+            && !!(this.currentToken
+                || this.overrideGMHotbar
+                || this.canGMHotbar());
+
         // Increment generation to invalidate any previous pending refresh
         const generation = ++this._refreshGeneration;
 
@@ -356,16 +364,20 @@ export class BG3Hotbar extends foundry.applications.api.HandlebarsApplicationMix
             this._refreshDebounceTimer = null;
         }
 
-        // Debounce: wait 50ms for rapid calls to coalesce (e.g., multi-token select)
-        await new Promise(resolve => {
-            this._refreshDebounceTimer = setTimeout(resolve, 50);
-        });
+        if (!coldHudBuild) {
+            // Debounce: wait 50ms for rapid calls to coalesce (e.g., multi-token select)
+            await new Promise(resolve => {
+                this._refreshDebounceTimer = setTimeout(resolve, 50);
+            });
 
-        // If a newer refresh was requested while we waited, bail out
-        if (generation !== this._refreshGeneration) return;
+            // If a newer refresh was requested while we waited, bail out
+            if (generation !== this._refreshGeneration) return;
+        }
 
-        // Add fade-out transition before re-rendering
-        if (this.element && !this.element.classList.contains('bg3-hud-building')) {
+        // Add fade-out transition before re-rendering (not for cold first build)
+        if (!coldHudBuild
+            && this.element
+            && !this.element.classList.contains('bg3-hud-building')) {
             this.element.classList.remove('bg3-hud-visible');
             this.element.classList.add('bg3-hud-fading-out');
 
