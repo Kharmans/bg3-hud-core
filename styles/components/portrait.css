@@ -15,7 +15,7 @@
     min-height: 80px;
     overflow: visible;
     --img-background-color: transparent;
-    margin-right: 8px;
+    margin-right: 0;
     z-index: 200;
 }
 
@@ -46,4 +46,18 @@
     border: none;
     outline: none;
     box-shadow: none;
+}
+
+/* Portrait hidden — keep info button only */
+#bg3-hotbar-container .bg3-portrait-container.portrait-hidden {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+}
+
+#bg3-hotbar-container .bg3-portrait-container.portrait-hidden .portrait-image-container,
+#bg3-hotbar-container .bg3-portrait-container.portrait-hidden .hp-text,
+#bg3-hotbar-container .bg3-portrait-container.portrait-hidden .bg3-death-saves-container {
+    display: none !important;
 }

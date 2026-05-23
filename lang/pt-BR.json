@@ -93,6 +93,10 @@
         "Name": "Mostrar Ícones de Filtros",
         "Hint": "Exibe os ícones de filtro de espaço de magia e tipo de ação acima da hotbar"
       },
+      "ShowPortrait": {
+        "Name": "Mostrar Retrato",
+        "Hint": "Exibe o retrato do personagem, sobreposição de PV e emblemas de dados do retrato. Quando desativado, o botão de informações do personagem (d20) permanece disponível."
+      },
       "ShowPortraitHPControls": {
         "Name": "Mostrar Controles de PV no Retrato",
         "Hint": "Exibe os botões para definir PV para mínimo (caveira), máximo (coração) e o campo de entrada de PV na interface do retrato"

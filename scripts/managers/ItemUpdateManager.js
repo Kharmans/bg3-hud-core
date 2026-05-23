@@ -67,25 +67,21 @@ export class ItemUpdateManager {
     async _updateHotbarForActor(actor, item, action) {
         if (!actor) return;
 
-        // Create a temporary persistence manager to work with this actor's data
-        const tempPersistence = new PersistenceManager();
-
-        // Resolve token context: for unlinked (synthetic) actors, use their own token id
+        // Resolve token context when available (canvas token may not exist yet during createToken)
         let targetToken = null;
         if (actor.isToken && actor.token?.id) {
             targetToken = canvas.tokens.get(actor.token.id);
         } else {
-            // Linked actor: prefer a linked token, otherwise any matching token
             for (const token of canvas.tokens.placeables) {
                 if (token.actor?.id === actor.id) {
                     targetToken = token;
-                    if (token.document.actorLink) break; // Prefer linked tokens
+                    if (token.document.actorLink) break;
                 }
             }
         }
 
-        // Set token in persistence manager (null if no token found)
-        tempPersistence.setToken(targetToken);
+        // Always bind to the actor — never fall through to GM hotbar when no canvas token exists
+        const tempPersistence = PersistenceManager.forActor(actor, targetToken);
 
         // Load the actor's current hotbar data
         const state = await tempPersistence.loadState();
@@ -355,49 +351,22 @@ export class ItemUpdateManager {
 
     /**
      * Determine if an item should be added to the hotbar
-     * Checks adapter's shouldAutoAddItem and shouldBlockFromHotbar
+     * Checks adapter's shouldAutoAddItem when provided
      * @param {Item} item - The item to check
      * @returns {boolean} - Whether the item should be added
      */
     async _shouldAddItemToHotbar(item) {
         const adapter = this._getAdapter();
 
-        // Check if adapter explicitly blocks this item (e.g., CPR items)
-        if (adapter && typeof adapter.shouldBlockFromHotbar === 'function') {
-            const blockResult = await adapter.shouldBlockFromHotbar(item);
-            if (blockResult?.blocked) {
-                console.debug(`[bg3-hud-core] Blocking item "${item.name}" from auto-add: ${blockResult.reason || 'adapter blocked'}`);
-                return false;
-            }
-        }
-
-        // Check if adapter has custom logic
         if (adapter && typeof adapter.shouldAutoAddItem === 'function') {
             return adapter.shouldAutoAddItem(item);
         }
 
-        // Default: check if the item has activities or activation type
         const activities = item.system?.activities;
         const hasActivities = (activities instanceof Map && activities.size > 0) ||
             (item.system?.activation?.type && item.system?.activation?.type !== 'none');
 
-        // Check if adapter has noActivityAutoPopulate setting (safely)
-        let noActivityAutoPopulate = false;
-        if (adapter && adapter.MODULE_ID) {
-            try {
-                // Try to get the setting - will throw if it doesn't exist
-                noActivityAutoPopulate = game.settings.get(adapter.MODULE_ID, 'noActivityAutoPopulate');
-            } catch (e) {
-                // Setting doesn't exist, use default (false)
-                noActivityAutoPopulate = false;
-            }
-        }
-
-        if (hasActivities || noActivityAutoPopulate) {
-            return true;
-        }
-
-        return false;
+        return hasActivities;
     }
 
     /**

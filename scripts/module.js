@@ -144,52 +144,49 @@ Hooks.on('createToken', async (tokenDocument, options, userId) => {
     const actor = tokenDocument.actor;
     if (!actor) return;
 
-    // Check if adapter provides auto-populate on token creation
     const adapter = BG3HUD_REGISTRY.activeAdapter;
-    if (!adapter || !adapter.autoPopulate) return;
+    if (!adapter) return;
 
     // Only auto-populate for NPCs (non-character actors) by default
     // Player characters should use right-click to auto-populate containers manually
-    // NOTE: NPCs may still be owned by players (e.g., observers/minions); ownership should not block auto-populate
-    // However, allow override for player characters if explicitly enabled
     const allowPlayerCharacters = game.settings.get(adapter.MODULE_ID, 'autoPopulatePlayerCharacters');
     if (actor.type === 'character' && !allowPlayerCharacters) {
         return;
     }
 
-    // Check if feature is enabled
-    const enabled = game.settings.get(adapter.MODULE_ID, 'autoPopulateEnabled');
+    const moduleId = adapter.MODULE_ID;
+
+    // Passives — independent of grid auto-populate
+    if (typeof adapter.autoPopulatePassives === 'function'
+        && game.settings.get(moduleId, 'autoPopulatePassivesEnabled')) {
+        try {
+            await adapter.autoPopulatePassives(actor, tokenDocument);
+        } catch (error) {
+            console.error('[bg3-hud-core] Error auto-populating passives on token creation:', error);
+        }
+    }
+
+    if (!adapter.autoPopulate) return;
+
+    const enabled = game.settings.get(moduleId, 'autoPopulateEnabled');
     if (!enabled) return;
 
-    const configuration = game.settings.get(adapter.MODULE_ID, 'autoPopulateConfiguration');
+    const configuration = game.settings.get(moduleId, 'autoPopulateConfiguration');
     if (!configuration) return;
 
-    // Check if any grid has types configured
-    const hasTypes = configuration.grid0?.length > 0 ||
-        configuration.grid1?.length > 0 ||
-        configuration.grid2?.length > 0;
+    const hasTypes = configuration.grid0?.length > 0
+        || configuration.grid1?.length > 0
+        || configuration.grid2?.length > 0;
 
     if (!hasTypes) return;
 
     try {
-        // Use a temporary persistence manager for the token
         const { PersistenceManager } = await import('./managers/PersistenceManager.js');
-        const tempPersistence = new PersistenceManager();
-
-        // Pass actor directly instead of token object (which may not exist yet)
+        const tempPersistence = PersistenceManager.forActor(actor);
         await adapter.autoPopulate.populateOnTokenCreation(actor, configuration, tempPersistence);
 
-        // Delay before passives (50ms after grids)
         await new Promise(resolve => setTimeout(resolve, 50));
 
-        // Also auto-populate passives if adapter supports it
-        if (typeof adapter.autoPopulatePassives === 'function') {
-            await adapter.autoPopulatePassives(actor, tokenDocument);
-        }
-
-        // Call adapter's token creation complete hook for any post-auto-populate work
-        // This runs AFTER all grids are populated to avoid race conditions with state saving
-        // Pass the same persistence manager so it can load/save state correctly
         if (typeof adapter.onTokenCreationComplete === 'function') {
             await adapter.onTokenCreationComplete(actor, tempPersistence);
         }

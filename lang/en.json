@@ -93,6 +93,10 @@
         "Name": "Show Filter Icons",
         "Hint": "Display the spell slot and action type filter icons above the hotbar"
       },
+      "ShowPortrait": {
+        "Name": "Show Portrait",
+        "Hint": "Display the character portrait, HP overlay, and portrait data badges. When disabled, the character info button (d20) remains available."
+      },
       "ShowPortraitHPControls": {
         "Name": "Show Portrait HP Controls",
         "Hint": "Display the buttons to set HP to minimum (skull), maximum (heart), and the HP input field in the portrait UI"

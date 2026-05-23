@@ -452,8 +452,7 @@ export class ControlContainer extends BG3Component {
 
             // Use a fresh persistence manager to write onto the base actor
             const { PersistenceManager } = await import('/modules/bg3-hud-core/scripts/managers/PersistenceManager.js');
-            const pm = new PersistenceManager();
-            pm.setToken(baseActor);
+            const pm = PersistenceManager.forActor(baseActor);
             await pm.saveState(foundry.utils.deepClone(currentState));
 
             ui.notifications?.info(game.i18n.localize('bg3-hud-core.Notifications.SaveLayoutSuccess'));

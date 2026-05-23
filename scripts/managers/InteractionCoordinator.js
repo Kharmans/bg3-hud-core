@@ -190,6 +190,10 @@ export class InteractionCoordinator {
             return;
         }
 
+        if (this.persistenceManager?.isGMHotbarMode?.()) {
+            return;
+        }
+
         // Get actor from hotbar app
         const actor = this.hotbarApp?.currentActor;
         if (!actor) {

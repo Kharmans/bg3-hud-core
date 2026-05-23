@@ -132,9 +132,9 @@ export class SlotContextMenu {
                 }
             });
 
-            // Auto-populate (if adapter supports it)
-            // Note: This is for player characters. NPCs auto-populate on token creation.
-            if (this.adapter && this.adapter.autoPopulate) {
+            // Auto-populate (if adapter supports it) — never on GM hotbar
+            const isGMHotbar = this.interactionCoordinator?.persistenceManager?.isGMHotbarMode?.() ?? false;
+            if (this.adapter && this.adapter.autoPopulate && !isGMHotbar) {
                 menuItems.push({
                     label: game.i18n.localize('bg3-hud-core.ContextMenu.AutoPopulateContainer'),
                     icon: 'fas fa-magic',

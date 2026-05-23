@@ -44,7 +44,7 @@ export class ActionButtonsContainer extends BG3Component {
                 key: buttonDef.key || 'action-button',
                 classes: ['bg3-action-button', ...(buttonDef.classes || [])],
                 icon: buttonDef.icon,
-                label: buttonDef.label,
+                label: buttonDef.icon ? '' : buttonDef.label,
                 tooltip: buttonDef.tooltip || buttonDef.label,
                 tooltipDirection: buttonDef.tooltipDirection,
                 onClick: buttonDef.onClick,

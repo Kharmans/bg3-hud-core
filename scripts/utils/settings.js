@@ -130,7 +130,7 @@ export function registerSettings() {
             },
             {
                 legend: 'bg3-hud-core.Settings.LayoutAppearance.ContainerConfigurationLegend',
-                keys: ['showFilters', 'passivesContainerIconsPerRow', 'activeEffectsContainerIconsPerRow', 'showPassiveActiveEffects']
+                keys: ['showPortrait', 'showFilters', 'passivesContainerIconsPerRow', 'activeEffectsContainerIconsPerRow', 'showPassiveActiveEffects']
             }
         ]
     });
@@ -854,6 +854,19 @@ export function registerSettings() {
         onChange: () => {
             // Refresh active effects container if hotbar exists
             ui.BG3HUD_APP?.components?.hotbar?.activeEffectsContainer?.render();
+        }
+    });
+
+    // Show portrait image and related portrait UI (info button always shown)
+    game.settings.register(MODULE_ID, 'showPortrait', {
+        name: 'bg3-hud-core.Settings.ShowPortrait.Name',
+        hint: 'bg3-hud-core.Settings.ShowPortrait.Hint',
+        scope: 'client',
+        config: false,
+        type: Boolean,
+        default: true,
+        onChange: () => {
+            ui.BG3HUD_APP?.components?.portrait?._applyPortraitVisibility?.();
         }
     });
 

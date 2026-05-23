@@ -684,6 +684,11 @@ export class UpdateCoordinator {
             }
             // Also update info container - active effects can change ability scores, skills, etc.
             await this._handleAbilityChange();
+
+            const filters = this.hotbarApp.components?.filters;
+            if (filters && typeof filters.syncUsedActionFilters === 'function') {
+                filters.syncUsedActionFilters(effect);
+            }
         }
     }
 

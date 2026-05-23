@@ -1,3 +1,18 @@
+## [0.4.0] - 2026-05-23
+
+### Added
+- **Hide portrait option**: You can turn off the portrait image under Layout & Appearance → Container Configuration while keeping the character info (d20) button, handy if you want a slimmer HUD but still need abilities, skills, and saves at a glance.
+
+### Changed
+- **More even HUD spacing**: Gaps between the portrait, weapons, advantage buttons, CPR actions, hotbar, and rest/end turn buttons should look more consistent left to right.
+- **Action buttons are icon-only**: Rest, End Turn, and other action buttons no longer show text labels — the icon and tooltip are enough.
+- **Passive features on new tokens**: Passive abilities can now auto-populate when a token is created even if you have not set up hotbar grid auto-populate, as long as passives are enabled in your auto-populate settings.
+
+### Fixed
+- **Auto-populate hitting the GM hotbar**: Dropping or creating tokens could sometimes fill the GM hotbar instead of the actor you intended when GM hotbar mode was on. Auto-populate now stays on the correct actor.
+- **Auto-populate while using the GM hotbar**: The "Auto-Populate Container" right-click option is hidden on the GM hotbar so you cannot accidentally populate it.
+- **Save layout to prototype**: Saving a token's hotbar layout back to the actor prototype no longer risks writing to the GM hotbar by mistake.
+
 ## [0.3.1] - 2026-05-13
 
 ### Changed

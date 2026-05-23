@@ -50,6 +50,19 @@
     opacity: 1;
 }
 
+/* Always show info button when portrait image is hidden */
+.bg3-portrait-container.portrait-hidden .bg3-info-container-wrapper {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    pointer-events: all;
+}
+
+.bg3-portrait-container.portrait-hidden .bg3-info-button {
+    opacity: 1;
+}
+
 .bg3-info-button:hover {
     background: var(--bg3-hotbar-background-color-hover);
     border-color: var(--bg3-hotbar-border-color-hover);

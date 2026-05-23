@@ -73,7 +73,25 @@ export class PortraitContainer extends BG3Component {
         // Register context menu for portrait image
         this._registerPortraitMenu(imageContainer);
 
+        this._applyPortraitVisibility();
+
         return this.element;
+    }
+
+    /**
+     * Whether the portrait image and portrait chrome should be shown
+     * @returns {boolean}
+     */
+    _isPortraitVisible() {
+        return game.settings.get('bg3-hud-core', 'showPortrait') ?? true;
+    }
+
+    /**
+     * Toggle portrait visibility while keeping the info container button
+     */
+    _applyPortraitVisibility() {
+        if (!this.element) return;
+        this.element.classList.toggle('portrait-hidden', !this._isPortraitVisible());
     }
 
     /**
@@ -134,6 +152,8 @@ export class PortraitContainer extends BG3Component {
         if (typeof this.updateHealth === 'function') {
             await this.updateHealth();
         }
+
+        this._applyPortraitVisibility();
 
         return this.element;
     }

@@ -10,10 +10,15 @@
  * - _lastSaveTimestamp prevents self-triggered hook reloads
  */
 export class PersistenceManager {
-    constructor() {
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.allowGMHotbarMode=true] When false, never read/write GM hotbar data (actor-scoped operations only)
+     */
+    constructor(options = {}) {
         this.MODULE_ID = 'bg3-hud-core';
         this.FLAG_NAME = 'hudState';
         this.VERSION = 2; // Bumped for views feature
+        this.allowGMHotbarMode = options.allowGMHotbarMode !== false;
         this.currentToken = null;
         this.currentActor = null;
         this.state = null; // Cached state
@@ -31,6 +36,18 @@ export class PersistenceManager {
             cols: 5,
             gridCount: 3
         };
+    }
+
+    /**
+     * Persistence manager locked to a specific actor (never GM hotbar).
+     * @param {Actor} actor
+     * @param {Token|null} [token]
+     * @returns {PersistenceManager}
+     */
+    static forActor(actor, token = null) {
+        const pm = new PersistenceManager({ allowGMHotbarMode: false });
+        pm.setToken(token ?? actor);
+        return pm;
     }
 
 
@@ -51,6 +68,7 @@ export class PersistenceManager {
      * @returns {boolean} True if in GM hotbar mode
      */
     isGMHotbarMode() {
+        if (!this.allowGMHotbarMode) return false;
         return !this.currentActor &&
             game.user.isGM &&
             game.settings.get(this.MODULE_ID, 'enableGMHotbar');

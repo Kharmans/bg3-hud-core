@@ -10,7 +10,7 @@
     min-width: calc(var(--bg3-hotbar-cell-size, 60px) + 6px);
     flex-direction: column;
     gap: 6px;
-    margin-left: 2px;
+    margin-left: 0;
     padding-bottom: 3px;
     justify-content: flex-end;
     align-items: center;
@@ -50,35 +50,18 @@
 
 /* Icon sizing */
 .bg3-action-buttons-container .bg3-button-icon {
-    font-size: calc(var(--bg3-hotbar-cell-size, 60px) / 2);
+    font-size: calc(var(--bg3-hotbar-cell-size, 60px) * 0.55);
     color: #fff;
-}
-
-/* Label */
-.bg3-action-buttons-container .bg3-button-label {
-    align-items: center;
-    display: flex;
-    justify-content: center;
-    text-transform: uppercase;
-    width: 100%;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: clamp(8px, calc(var(--bg3-hotbar-cell-size, 60px) / 4.5), 14px);
-    white-space: nowrap;
-    padding: 0 2px;
-}
-
-/* End Turn button specific styling */
-.bg3-action-buttons-container .bg3-button.end-turn-button {
-    background-color: var(--bg3-background-color);
-    border-color: var(--bg3-border-color);
-    color: var(--bg3-text-color);
-    padding: 4px;
 }
 
 .bg3-action-buttons-container .bg3-button.end-turn-button .bg3-button-icon {
     font-size: calc(var(--bg3-hotbar-cell-size, 60px) * 0.6);
+}
+
+.bg3-action-buttons-container .bg3-button.end-turn-button {
+    background-color: var(--bg3-background-color);
+    border-color: var(--bg3-border-color);
+    color: var(--bg3-text-color);
 }
 
 .bg3-action-buttons-container .bg3-button.end-turn-button:hover,
