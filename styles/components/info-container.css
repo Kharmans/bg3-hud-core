@@ -217,16 +217,6 @@
     opacity: 0.7;
 }
 
-.bg3-info-d20-modifier.master .bg3-d20-icon {
-    color: rgba(155, 89, 182, 0.9);
-    opacity: 0.7;
-}
-
-.bg3-info-d20-modifier.legendary .bg3-d20-icon {
-    color: rgba(231, 76, 60, 0.9);
-    opacity: 0.7;
-}
-
 .bg3-info-d20-modifier .bg3-d20-value {
     position: relative;
     font-size: calc(1em * var(--bg3-info-scale, 1.2));
@@ -296,74 +286,3 @@
     flex-shrink: 0;
 }
 
-/* ──────────────────────────────────────────────
-   Saves Section (three-save layout — horizontal d20 blocks when provided by adapter)
-   ────────────────────────────────────────────── */
-
-.bg3-info-saves {
-    padding-top: 8px;
-    border-top: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
-}
-
-/* 3 horizontal blocks side by side */
-.bg3-info-saves-row {
-    display: flex;
-    gap: 4px;
-    justify-content: center;
-}
-
-.bg3-info-save-block {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 6px 10px;
-    background: var(--bg3-cell-background);
-    border: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
-    border-radius: calc(var(--bg3-border-radius) / 2);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    flex: 1;
-}
-
-.bg3-info-save-block:hover {
-    background: var(--bg3-cell-hover-background);
-    border-color: var(--bg3-hotbar-border-color-hover);
-}
-
-/* Label above d20 */
-.bg3-info-save-label {
-    font-size: calc(0.75em * var(--bg3-info-scale, 1.2));
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--bg3-hotbar-text-color);
-    white-space: nowrap;
-}
-
-/* Save d20 — same size as skill d20s */
-.bg3-info-save-d20 {
-    width: calc(32px * var(--bg3-info-scale, 1.2));
-    height: calc(32px * var(--bg3-info-scale, 1.2));
-    margin-top: 2px;
-}
-
-.bg3-info-save-d20 .bg3-d20-icon {
-    font-size: calc(2em * var(--bg3-info-scale, 1.2));
-}
-
-.bg3-info-save-d20 .bg3-d20-value {
-    font-size: calc(0.9em * var(--bg3-info-scale, 1.2));
-}
-
-/* Section headers (kept for other potential uses) */
-.bg3-info-section-header {
-    font-size: 0.75em;
-    font-weight: bold;
-    text-transform: uppercase;
-    color: var(--bg3-text-secondary-color);
-    margin-bottom: 4px;
-    padding-bottom: 2px;
-    border-bottom: var(--bg3-hotbar-border-size) solid var(--bg3-hotbar-border-color);
-    letter-spacing: 0.5px;
-}

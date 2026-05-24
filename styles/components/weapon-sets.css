@@ -76,7 +76,7 @@
     font-family: 'Roboto Slab', serif;
     z-index: 50;
     pointer-events: none;
-    border: var(--bg3-border);
+    border: var(--bg3-weapon-border-size) solid var(--bg3-border-color);
     background: var(--bg3-weapon-background-color);
     border-radius: 50%;
     width: calc(var(--bg3-weapon-cell-size) / 2);
@@ -95,7 +95,7 @@
 /* Weapon set cells */
 #bg3-hotbar-container .bg3-weapon-set .bg3-grid-cell {
     padding: 4px;
-    border: var( --bg3-border)
+    border: var(--bg3-weapon-border-size) solid var(--bg3-border-color);
 }
 
 #bg3-hotbar-container .bg3-weapon-set .bg3-grid-cell:first-of-type {

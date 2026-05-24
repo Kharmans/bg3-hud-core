@@ -48,9 +48,9 @@
     flex: 0 0 auto;
     /* prevent flex stretching */
 
-    /* square size scales globally */
-    width: calc(40px * var(--filter-scale));
-    height: calc(40px * var(--filter-scale));
+    /* square size from theme token */
+    width: var(--bg3-filter-cell-size);
+    height: var(--bg3-filter-cell-size);
 
     padding: calc(4px * var(--filter-scale));
     font-size: calc(1.2em * var(--filter-scale));
@@ -171,29 +171,6 @@
 
 .bg3-filter-button .slot-box.filled {
     background: var(--filter-color, #ddd);
-}
-
-/* Custom Resource Buttons */
-.bg3-filter-button.filter-custom {
-    background-size: cover;
-    background-position: center;
-    position: relative;
-}
-
-.bg3-filter-button.filter-custom::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 2px;
-}
-
-.bg3-filter-button.filter-custom .filter-value {
-    position: relative;
-    z-index: 1;
-    color: white;
-    text-shadow: 0 0 4px black;
-    font-weight: bold;
 }
 
 /* Grid cell highlight states */

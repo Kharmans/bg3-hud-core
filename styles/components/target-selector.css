@@ -290,37 +290,6 @@ body.bg3-targeting * {
 }
 
 /* ==========================================================================
-   Range Indicator
-   Canvas overlay showing range circle
-   ========================================================================== */
-
-/* These are handled via PIXI.Graphics, but we can style related elements */
-.bg3-range-indicator {
-    pointer-events: none;
-}
-
-/* ==========================================================================
-   Token Visual States
-   Applied to tokens during target selection
-   ========================================================================== */
-
-.token.bg3-target-valid {
-    filter: drop-shadow(0 0 8px #00ff00);
-}
-
-.token.bg3-target-invalid {
-    filter: drop-shadow(0 0 8px #ff0000) grayscale(0.5);
-}
-
-.token.bg3-target-selected {
-    filter: drop-shadow(0 0 12px #00ff00) brightness(1.2);
-}
-
-.token.bg3-target-hovered {
-    filter: drop-shadow(0 0 6px #ffff00) brightness(1.1);
-}
-
-/* ==========================================================================
    Animations
    ========================================================================== */
 
@@ -334,32 +303,6 @@ body.bg3-targeting * {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
     }
-}
-
-@keyframes bg3-range-pulse {
-
-    0%,
-    100% {
-        opacity: 0.6;
-    }
-
-    50% {
-        opacity: 0.9;
-    }
-}
-
-/* ==========================================================================
-   Hotbar Integration
-   Disable hotbar during targeting
-   ========================================================================== */
-
-#bg3-hotbar-container.targeting-active {
-    pointer-events: none;
-    opacity: 0.7;
-}
-
-#bg3-hotbar-container.targeting-active .hotbar-cell {
-    cursor: not-allowed;
 }
 
 /* ==========================================================================
@@ -399,14 +342,6 @@ body.bg3-targeting * {
 
     .bg3-target-item.out-of-range {
         border-left-color: #ff0000;
-    }
-
-    .token.bg3-target-valid {
-        filter: drop-shadow(0 0 12px #00ff00) contrast(1.5);
-    }
-
-    .token.bg3-target-invalid {
-        filter: drop-shadow(0 0 12px #ff0000) contrast(1.5);
     }
 }
 
