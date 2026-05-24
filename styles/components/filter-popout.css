@@ -12,14 +12,6 @@
     min-width: auto;
 }
 
-.bg3-filter-button.bg3-filter-group .filter-group-label {
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-}
-
 .bg3-filter-button.bg3-filter-group .filter-group-arrow {
     font-size: 8px;
     transition: transform 0.2s ease;

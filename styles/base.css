@@ -23,6 +23,7 @@
     /* Tertiary borders (controls, views, filters, passives, actives) */
     --bg3-border-size: 2px;
     --bg3-border-radius: 8px;
+    --bg3-tertiary-border-radius: var(--bg3-border-radius);
 
     /* Portrait */
     --bg3-portrait-size: 175px;
@@ -258,35 +259,6 @@
 #bg3-hotbar-container[data-master-lock="true"][data-lock-settings*="opacity"] {
     transition-delay: 0s;
     opacity: var(--bg3-normal-opacity);
-}
-
-/* ==========================================================================
-   No Adapter Notice (Temporary - shown when no system adapter loaded)
-   ========================================================================== */
-
-.bg3-no-adapter-notice {
-    background: var(--bg3-background);
-    border: 2px solid var(--primary-border-color);
-    border-radius: 4px;
-    padding: 20px;
-    text-align: center;
-    color: var(--bg3-text);
-    min-width: 400px;
-}
-
-.bg3-no-adapter-notice p {
-    margin: 8px 0;
-    font-size: 14px;
-}
-
-.bg3-no-adapter-notice p:first-child {
-    color: #ffaa00;
-    font-weight: bold;
-    font-size: 16px;
-}
-
-.bg3-no-adapter-notice strong {
-    color: #3498db;
 }
 
 /* ==========================================================================
