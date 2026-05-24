@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - module.json
+      - CHANGELOG.md
+  workflow_dispatch:
 
 jobs:
   release:
@@ -14,30 +18,27 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Extract Version from module.json
         id: get_version
         run: |
-          # Using jq to parse the version field from module.json at repo root
           VERSION=$(jq -r '.version' module.json)
           echo "Found version: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "::set-output name=version::$VERSION"
-          # Also extract package ID and compatibility
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           PACKAGE_ID=$(jq -r '.id' module.json)
           MIN_CORE=$(jq -r '.compatibility.minimum' module.json)
           VERIFIED_CORE=$(jq -r '.compatibility.verified' module.json)
           MAX_CORE=$(jq -r '.compatibility.maximum // ""' module.json)
-          echo "PACKAGE_ID=$PACKAGE_ID" >> $GITHUB_ENV
-          echo "MIN_CORE=$MIN_CORE" >> $GITHUB_ENV
-          echo "VERIFIED_CORE=$VERIFIED_CORE" >> $GITHUB_ENV
-          echo "MAX_CORE=$MAX_CORE" >> $GITHUB_ENV
+          echo "PACKAGE_ID=$PACKAGE_ID" >> "$GITHUB_ENV"
+          echo "MIN_CORE=$MIN_CORE" >> "$GITHUB_ENV"
+          echo "VERIFIED_CORE=$VERIFIED_CORE" >> "$GITHUB_ENV"
+          echo "MAX_CORE=$MAX_CORE" >> "$GITHUB_ENV"
 
       - name: Extract Latest Changelog Entry
         id: get_changelog
         run: |
-          # Extract the latest version entry from CHANGELOG.md, skipping the version header
           CHANGELOG=$(awk '
             /^## \[[0-9]+\.[0-9]+\.[0-9]+/ {
               if (p) { exit }
@@ -46,10 +47,10 @@ jobs:
             }
             p { print }
           ' CHANGELOG.md | sed '/^[[:space:]]*$/d')
-          
-          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "$CHANGELOG" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+
+          echo "CHANGELOG<<EOF" >> "$GITHUB_ENV"
+          echo "$CHANGELOG" >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
 
       - name: Configure Git
         run: |
@@ -60,21 +61,24 @@ jobs:
         id: tag
         run: |
           TAG="${{ env.VERSION }}"
-          echo "Creating tag: $TAG"
-          git tag "$TAG"
-          git push origin "$TAG"
-          echo "::set-output name=tag::$TAG"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            echo "Tag ${TAG} already exists on remote, skipping tag push"
+          else
+            echo "Creating tag: ${TAG}"
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Create Module ZIP
         run: |
-          # Zip everything in the repo except hidden folders/files we don't need
           zip -r bg3-hud-core.zip . \
             -x "*.git*" \
                ".github*" \
                "*.vscode*"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
@@ -82,16 +86,12 @@ jobs:
           files: |
             bg3-hud-core.zip
             module.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to Foundry VTT
         run: |
-          # Construct the manifest and notes URLs using the version
           MANIFEST_URL="https://github.com/${{ github.repository }}/releases/download/${{ env.VERSION }}/module.json"
           NOTES_URL="https://github.com/${{ github.repository }}/releases/tag/${{ env.VERSION }}"
-          
-          # Create the release payload
+
           payload=$(cat <<EOF
           {
             "id": "${{ env.PACKAGE_ID }}",
@@ -108,12 +108,9 @@ jobs:
           }
           EOF
           )
-          
-          # Send the release to Foundry VTT
+
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}" \
             -d "$payload" \
             https://api.foundryvtt.com/_api/packages/release_version/
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
