@@ -509,6 +509,12 @@ export class InteractionCoordinator {
             return;
         }
 
+        // Fast path: adapter supplied pre-built cell data (e.g. system actions with no document UUID)
+        if (result.cellData) {
+            await this._handleExternalCellData(targetCell, result.cellData);
+            return;
+        }
+
         const { document, type, augment } = result;
         const isMacro = type === 'Macro';
         const isActivity = type === 'Activity';
@@ -619,9 +625,52 @@ export class InteractionCoordinator {
     }
 
     /**
+     * Persist adapter-supplied cell data that has no backing document (e.g. system actions).
+     * Mirrors the document path: validate ownership, block duplicates, then update and persist.
+     * @param {GridCell} targetCell
+     * @param {Object} cellData
+     * @private
+     */
+    async _handleExternalCellData(targetCell, cellData) {
+        const currentActor = this.hotbarApp?.currentActor;
+        if (!currentActor) {
+            ui.notifications.warn(game.i18n.localize('bg3-hud-core.Notifications.NoActorSelected'));
+            return;
+        }
+
+        // Ownership check when the cell references a specific actor
+        if (cellData.actorUuid && currentActor.uuid !== cellData.actorUuid) {
+            ui.notifications.warn(game.i18n.format('bg3-hud-core.Notifications.ItemOwnerMismatch', { type: 'action', owner: cellData.name ?? '', current: currentActor.name }));
+            return;
+        }
+
+        // Block duplicate entries by synthetic uuid
+        if (cellData.uuid && !ContainerTypeDetector.isWeaponSet(targetCell)) {
+            const existingLocation = this.persistenceManager?.findUuidInHud(cellData.uuid);
+            if (existingLocation) {
+                ui.notifications.warn(game.i18n.format('bg3-hud-core.Notifications.DuplicateInHud', { label: 'action' }));
+                return;
+            }
+        }
+
+        await targetCell.setData(cellData, { skipSave: true });
+        this._updateRuntimeGridItem(targetCell, cellData);
+
+        if (this.persistenceManager) {
+            await this.persistenceManager.updateCell({
+                container: targetCell.containerType,
+                containerIndex: targetCell.containerIndex,
+                slotKey: targetCell.getSlotKey(),
+                data: cellData,
+                parentCell: targetCell.parentCell
+            });
+        }
+    }
+
+    /**
      * Resolve drag-transfer JSON to a document adapters can augment (see BG3HudDragResolution).
      * @param {DragEvent} event
-     * @returns {Promise<null|{ document: Document, type: string, augment?: Record<string, unknown> }>}
+     * @returns {Promise<null|{ document?: Document, type?: string, augment?: Record<string, unknown>, cellData?: Object }>}
      * @private
      */
     async _getDocumentFromDragData(event) {

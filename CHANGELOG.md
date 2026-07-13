@@ -1,3 +1,29 @@
+## [0.4.3] - 2026-07-13
+
+### Changed
+- **Foundry v14 ready**: Verified and working on Foundry v14, and still fully supported on v13. Updated an internal template call so it keeps working on the new version.
+
+## [0.4.2] - 2026-06-17
+
+### Added
+- **Portrait border**: Restored HUD portrait frame options from the legacy hotbar — none, simple (theme border), or styled (round ring asset). Configure under Layout & Appearance → Container Configuration.
+
+### Fixed
+- **NPC auto-populate after compendium round-trip**: Token-creation auto-populate now runs only once per actor (`autoPopulateComplete` on `hudState`). Existing populated hotbars are recognised without re-filling.
+- **Stale hotbar UUIDs after re-import**: When an actor returns from a compendium with new item IDs, saved layout slots remap to matching items by name (and type) instead of leaving ghost entries or duplicating on the next populate.
+
+## [0.4.1] - 2026-06-17
+
+### Added
+- **Adapter-supplied cell data**: Drag-and-drop and auto-populate can now persist pre-built hotbar cells from system adapters (e.g. Crucible actions) that do not have a backing Foundry document UUID.
+- **External cell drag path**: Adapters can return `cellData` from drag resolution instead of a document; core validates ownership, blocks duplicates via synthetic UUIDs, and persists the slot like any other cell.
+
+### Changed
+- **Auto-populate sorting for adapter cells**: Adapter cells (e.g. `CrucibleAction`, strikes) use adapter `sortItems()` and `enrichItemsForSort()` while UUID-only entries still use `sortUuidEntries()`.
+- **Crucible action hydration**: Saved `CrucibleAction` cells refresh from live `actor.actions` on load when the adapter provides `transformActionToCellData`.
+- **Tooltip handoff**: Core tooltip manager skips elements marked with `[data-crucible-tooltip]` so adapter modules can render and lock their own tooltips.
+- **Foundry v14 verified**: Module manifest updated to verified Foundry v14.
+
 ## [0.4.0] - 2026-05-23
 
 ### Added

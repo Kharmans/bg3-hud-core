@@ -45,9 +45,12 @@ export const BG3HUD_REGISTRY = {
 
 /**
  * @typedef {Object} BG3HudDragResolution
- * @property {foundry.abstract.Document} document
- * @property {'Item'|'Macro'|'Activity'} type
+ * Return EITHER a `document` (core transforms it) OR pre-built `cellData` (core persists it directly).
+ * @property {foundry.abstract.Document} [document]
+ * @property {'Item'|'Macro'|'Activity'} [type]
  * @property {Record<string, unknown>} [augment] Merged onto cell data after adapter `transform*` (e.g. strike metadata).
+ * @property {Object} [cellData] Pre-built cell data for entries with no backing document (e.g. system actions).
+ *   Include `actorUuid` for ownership validation and a stable `uuid` for duplicate detection.
  */
 
 /**

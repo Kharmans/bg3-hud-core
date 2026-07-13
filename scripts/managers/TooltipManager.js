@@ -495,6 +495,11 @@ export class TooltipManager {
             return;
         }
 
+        // Crucible (and similar) render tooltips via data-crucible-tooltip on pointerenter
+        if (target.closest('[data-crucible-tooltip]')) {
+            return;
+        }
+
         // Check if we're already showing/pending a tooltip for this exact target
         // If so, don't restart the process
         if (this.currentTarget === target || this.pendingTarget === target) {
@@ -755,6 +760,9 @@ export class TooltipManager {
 
         const target = event.target.closest('[data-tooltip], [data-uuid]');
         if (!target) return;
+
+        // Crucible HUD hosts use game.tooltip.lockTooltip (see bg3-hud-crucible)
+        if (target.closest('[data-crucible-tooltip]')) return;
 
         // If tooltip is visible, pin it
         if (this.tooltipElement.classList.contains('visible') &&

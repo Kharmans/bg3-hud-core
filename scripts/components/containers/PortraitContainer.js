@@ -74,6 +74,7 @@ export class PortraitContainer extends BG3Component {
         this._registerPortraitMenu(imageContainer);
 
         this._applyPortraitVisibility();
+        this._applyPortraitBorder();
 
         return this.element;
     }
@@ -92,6 +93,26 @@ export class PortraitContainer extends BG3Component {
     _applyPortraitVisibility() {
         if (!this.element) return;
         this.element.classList.toggle('portrait-hidden', !this._isPortraitVisible());
+    }
+
+    /**
+     * Apply portrait border style from client setting (none / simple / styled).
+     */
+    _applyPortraitBorder() {
+        if (!this.element) return;
+        const border = game.settings.get('bg3-hud-core', 'borderPortraitPreferences') ?? 'none';
+        this.element.setAttribute('data-border', border);
+    }
+
+    /**
+     * Live-update border on the rendered portrait without a full HUD rebuild.
+     * @param {string} border
+     */
+    static applyBorderToLivePortrait(border) {
+        const portrait = ui.BG3HUD_APP?.components?.portrait;
+        if (portrait?.element) {
+            portrait.element.setAttribute('data-border', border);
+        }
     }
 
     /**
@@ -154,6 +175,7 @@ export class PortraitContainer extends BG3Component {
         }
 
         this._applyPortraitVisibility();
+        this._applyPortraitBorder();
 
         return this.element;
     }

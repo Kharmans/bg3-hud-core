@@ -97,6 +97,13 @@
         "Name": "Mostrar Retrato",
         "Hint": "Exibe o retrato do personagem, sobreposição de PV e emblemas de dados do retrato. Quando desativado, o botão de informações do personagem (d20) permanece disponível."
       },
+      "BorderPortraitPreferences": {
+        "Name": "Borda do Retrato",
+        "Hint": "Moldura decorativa em torno da imagem do retrato na HUD.",
+        "None": "Nenhuma",
+        "Simple": "Simples",
+        "Styled": "Estilizada (anel redondo)"
+      },
       "ShowPortraitHPControls": {
         "Name": "Mostrar Controles de PV no Retrato",
         "Hint": "Exibe os botões para definir PV para mínimo (caveira), máximo (coração) e o campo de entrada de PV na interface do retrato"

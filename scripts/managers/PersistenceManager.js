@@ -111,6 +111,7 @@ export class PersistenceManager {
             this._migrateQuickAccessFormat(this.state);
             // Ensure views structure exists
             this._ensureViewsStructure(this.state);
+            await this._finalizeLoadedState(this.state);
             return this.state;
         }
 
@@ -226,6 +227,20 @@ export class PersistenceManager {
             })
             .map(async ([slotKey, cellData]) => {
                 try {
+                    // Adapter-supplied action cells (synthetic uuid, not a Foundry document)
+                    if (cellData?.type === 'CrucibleAction' && typeof adapter?.transformActionToCellData === 'function') {
+                        const actor = cellData.actorUuid ? await fromUuid(cellData.actorUuid) : null;
+                        const action = actor?.actions?.[cellData.actionId];
+                        if (action) {
+                            const freshData = await adapter.transformActionToCellData(action, actor);
+                            if (freshData) {
+                                items[slotKey] = freshData;
+                                hydrated++;
+                            }
+                        }
+                        return;
+                    }
+
                     const item = await fromUuid(cellData.uuid);
                     if (item) {
                         // Re-transform using adapter to get fresh data
@@ -279,6 +294,8 @@ export class PersistenceManager {
 
             // Mark that we're saving locally (to prevent reload on updateActor hook)
             this._lastSaveTimestamp = Date.now();
+
+            this._syncCurrentStateToActiveView(state);
 
             await this.currentActor.setFlag(this.MODULE_ID, this.FLAG_NAME, state);
             this.state = foundry.utils.deepClone(state);
@@ -756,6 +773,7 @@ export class PersistenceManager {
 
         return {
             version: this.VERSION,
+            autoPopulateComplete: false,
             views: {
                 list: [
                     {
@@ -971,6 +989,9 @@ export class PersistenceManager {
 
         // Load the view's hotbar state into current state (views only affect hotbar)
         state.hotbar = foundry.utils.deepClone(view.hotbarState.hotbar);
+        if (view.hotbarState.autoPopulateComplete === true) {
+            state.autoPopulateComplete = true;
+        }
 
         await this.saveState(state);
 
@@ -1120,6 +1141,165 @@ export class PersistenceManager {
     }
 
     /**
+     * Whether token-creation auto-populate has already run for this actor.
+     * Treats legacy populated hotbars (pre-flag) as complete.
+     * @param {Object} state
+     * @returns {boolean}
+     */
+    isAutoPopulateComplete(state) {
+        if (!state) return false;
+        if (state.autoPopulateComplete === true) return true;
+        return this._stateHasHotbarItems(state);
+    }
+
+    /**
+     * Mark token-creation auto-populate as complete on the actor hudState.
+     * @param {Object} state
+     */
+    markAutoPopulateComplete(state) {
+        if (!state) return;
+        state.autoPopulateComplete = true;
+    }
+
+    /**
+     * @param {Object} state
+     * @returns {boolean}
+     * @private
+     */
+    _stateHasHotbarItems(state) {
+        const grids = state?.hotbar?.grids;
+        if (!Array.isArray(grids)) return false;
+        return grids.some(grid => Object.keys(grid?.items ?? {}).length > 0);
+    }
+
+    /**
+     * Reconcile stale item UUIDs after compendium re-import (new actor/item IDs).
+     * @param {Object} state
+     * @returns {Promise<boolean>} True if state was modified
+     */
+    async reconcileStaleItemUuids(state) {
+        if (!state || !this.currentActor) return false;
+
+        const adapter = ui.BG3HOTBAR?.registry?.activeAdapter;
+        const itemMaps = this._collectAllItemMaps(state);
+        let changed = false;
+
+        for (const items of itemMaps) {
+            for (const [slotKey, cellData] of Object.entries(items)) {
+                const result = await this._reconcileCellData(cellData, adapter);
+                if (result.action === 'update') {
+                    items[slotKey] = result.data;
+                    changed = true;
+                } else if (result.action === 'remove') {
+                    delete items[slotKey];
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    /**
+     * @param {Object} state
+     * @returns {Object[]}
+     * @private
+     */
+    _collectAllItemMaps(state) {
+        const maps = [];
+        for (const grid of state.hotbar?.grids ?? []) {
+            if (grid?.items) maps.push(grid.items);
+        }
+        for (const set of state.weaponSets?.sets ?? []) {
+            if (set?.items) maps.push(set.items);
+        }
+        for (const grid of state.quickAccess?.grids ?? []) {
+            if (grid?.items) maps.push(grid.items);
+        }
+        return maps;
+    }
+
+    /**
+     * @param {Object|null} cellData
+     * @param {Object|null} adapter
+     * @returns {Promise<{action: 'keep'|'update'|'remove', data?: Object}>}
+     * @private
+     */
+    async _reconcileCellData(cellData, adapter) {
+        if (!cellData) return { action: 'keep' };
+
+        if (cellData.type === 'Macro') return { action: 'keep' };
+
+        if (cellData.type === 'CrucibleAction' && typeof adapter?.transformActionToCellData === 'function') {
+            const actor = this.currentActor;
+            const action = actor?.actions?.[cellData.actionId];
+            if (action) {
+                const freshData = await adapter.transformActionToCellData(action, actor);
+                if (freshData) return { action: 'update', data: freshData };
+            }
+            return { action: 'remove' };
+        }
+
+        if (!cellData.uuid) return { action: 'keep' };
+
+        const resolved = await fromUuid(cellData.uuid);
+        if (resolved) return { action: 'keep' };
+
+        const actor = this.currentActor;
+        if (!actor) return { action: 'remove' };
+
+        const itemTypeHint = cellData.itemData?.itemType ?? (cellData.type !== 'Item' ? cellData.type : null);
+        const nameMatches = actor.items.filter(i => i.name === cellData.name);
+
+        let match = null;
+        if (nameMatches.length === 1) {
+            match = nameMatches[0];
+        } else if (nameMatches.length > 1 && itemTypeHint) {
+            match = nameMatches.find(i => i.type === itemTypeHint) ?? null;
+        }
+
+        if (match && typeof adapter?.transformItemToCellData === 'function') {
+            const freshData = await adapter.transformItemToCellData(match);
+            if (freshData) return { action: 'update', data: freshData };
+        }
+
+        if (match) {
+            return {
+                action: 'update',
+                data: {
+                    ...cellData,
+                    uuid: match.uuid
+                }
+            };
+        }
+
+        return { action: 'remove' };
+    }
+
+    /**
+     * Prune/remap stale UUIDs after load; persist when modified.
+     * @param {Object} state
+     * @private
+     */
+    async _finalizeLoadedState(state) {
+        let changed = false;
+
+        if (this.isAutoPopulateComplete(state) && state.autoPopulateComplete !== true) {
+            state.autoPopulateComplete = true;
+            changed = true;
+        }
+
+        if (await this.reconcileStaleItemUuids(state)) {
+            changed = true;
+        }
+
+        if (changed) {
+            this._syncCurrentStateToActiveView(state);
+            await this.saveState(state);
+        }
+    }
+
+    /**
      * Sync current hotbar state to the active view's stored hotbarState
      * This ensures the active view stays up-to-date with any changes
      * @param {Object} state - Current state
@@ -1133,7 +1313,8 @@ export class PersistenceManager {
 
         // Update the active view's hotbar state with current hotbar state only
         activeView.hotbarState = {
-            hotbar: foundry.utils.deepClone(state.hotbar)
+            hotbar: foundry.utils.deepClone(state.hotbar),
+            autoPopulateComplete: state.autoPopulateComplete === true
         };
     }
 

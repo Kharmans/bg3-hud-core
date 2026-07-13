@@ -130,7 +130,7 @@ export function registerSettings() {
             },
             {
                 legend: 'bg3-hud-core.Settings.LayoutAppearance.ContainerConfigurationLegend',
-                keys: ['showPortrait', 'showFilters', 'passivesContainerIconsPerRow', 'activeEffectsContainerIconsPerRow', 'showPassiveActiveEffects']
+                keys: ['showPortrait', 'borderPortraitPreferences', 'showFilters', 'passivesContainerIconsPerRow', 'activeEffectsContainerIconsPerRow', 'showPassiveActiveEffects']
             }
         ]
     });
@@ -854,6 +854,25 @@ export function registerSettings() {
         onChange: () => {
             // Refresh active effects container if hotbar exists
             ui.BG3HUD_APP?.components?.hotbar?.activeEffectsContainer?.render();
+        }
+    });
+
+    game.settings.register(MODULE_ID, 'borderPortraitPreferences', {
+        name: 'bg3-hud-core.Settings.BorderPortraitPreferences.Name',
+        hint: 'bg3-hud-core.Settings.BorderPortraitPreferences.Hint',
+        scope: 'client',
+        config: false,
+        type: String,
+        choices: {
+            none: 'bg3-hud-core.Settings.BorderPortraitPreferences.None',
+            simple: 'bg3-hud-core.Settings.BorderPortraitPreferences.Simple',
+            styled: 'bg3-hud-core.Settings.BorderPortraitPreferences.Styled'
+        },
+        default: 'none',
+        onChange: value => {
+            import('../components/containers/PortraitContainer.js').then(({ PortraitContainer }) => {
+                PortraitContainer.applyBorderToLivePortrait(value);
+            });
         }
     });
 
