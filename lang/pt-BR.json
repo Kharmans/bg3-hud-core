@@ -137,7 +137,7 @@
         "MenuLabel": "Configurações da Interface do Foundry",
         "MenuHint": "Controle a visibilidade da barra de macros e tempo de dica",
         "Legend": "Interface do Foundry",
-        "NameOnlyTooltipsName": "Dicas de Apenas Nomes",
+        "NameOnlyTooltipsName": "Apenas Nomes de Dicas",
         "NameOnlyTooltipsHint": "Use dicas simples e nativas para itens, magias e características, ao invés de dicas de ferramentas complexas do sistema."
       },
       "GMHotbar": {
